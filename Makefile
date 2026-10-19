@@ -4,15 +4,18 @@ VENV = .venv
 PYTHON = $(VENV)/bin/python3
 UVICORN = $(VENV)/bin/uvicorn
 
-.PHONY: help setup run clean
+.PHONY: help setup run test test-concurrency test-queue clean
 
 PORT ?= 8001
 
 help:
 	@echo "Comandos disponíveis:"
-	@echo "  make setup     - Cria ambiente virtual e instala dependências"
-	@echo "  make run       - Inicia a API FastAPI (porta $(PORT))"
-	@echo "  make clean     - Remove arquivos temporários e cache"
+	@echo "  make setup            - Cria ambiente virtual e instala dependências"
+	@echo "  make run              - Inicia a API FastAPI (porta $(PORT))"
+	@echo "  make test             - Executa todos os testes automatizados da API"
+	@echo "  make test-concurrency - Testa concorrência (2 produtores, 2 workers e cache LRU)"
+	@echo "  make test-queue       - Testa saturação de fila cheia (HTTP 503) e escala de workers"
+	@echo "  make clean            - Remove arquivos temporários e cache"
 
 setup:
 	python3 -m venv $(VENV)
@@ -21,6 +24,17 @@ setup:
 
 run:
 	$(UVICORN) app.main:app --host 0.0.0.0 --port $(PORT) --reload
+
+test-concurrency:
+	@echo "==> Executando teste de concorrência e cache LRU..."
+	PYTHONPATH=. $(PYTHON) scripts/test_concurrency_and_cache.py
+
+test-queue:
+	@echo "==> Executando teste de saturação de fila e escala de workers..."
+	PYTHONPATH=. $(PYTHON) scripts/test_queue_full_and_scaling.py
+
+test: test-concurrency test-queue
+	@echo "==> Todos os testes de validação foram concluídos com sucesso!"
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +

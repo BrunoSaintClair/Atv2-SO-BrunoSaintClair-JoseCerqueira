@@ -34,6 +34,14 @@ MAX_CONTEXT_CHARS = int(os.getenv("MAX_CONTEXT_CHARS", "4000"))
 OLLAMA_GEN_TIMEOUT = float(os.getenv("OLLAMA_GEN_TIMEOUT", "60.0"))
 OLLAMA_EMBED_TIMEOUT = float(os.getenv("OLLAMA_EMBED_TIMEOUT", "30.0"))
 
+# Configurações de Concorrência e Fila Compartilhada
+DEFAULT_QUEUE_MAXSIZE = int(os.getenv("DEFAULT_QUEUE_MAXSIZE", "50"))
+DEFAULT_WORKERS_COUNT = int(os.getenv("DEFAULT_WORKERS_COUNT", "2"))
+QUEUE_PUT_TIMEOUT = float(os.getenv("QUEUE_PUT_TIMEOUT", "3.0"))
+
+# Configurações do Cache Compartilhado LRU
+DEFAULT_CACHE_CAPACITY = int(os.getenv("DEFAULT_CACHE_CAPACITY", "20"))
+
 # Configurações de API
 API_TITLE = "GenResearch-Servidor"
 API_VERSION = "0.1.0"

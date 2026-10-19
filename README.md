@@ -103,7 +103,17 @@ Documentação Swagger interativa: [http://localhost:8001/docs](http://localhost
 | `GET` | `/documents` | Lista documentos cadastrados e quantidade de chunks |
 | `GET` | `/documents/{doc_id}` | Detalhes de um documento e de seus fragmentos persistidos |
 | `GET` | `/corpus/info` | Estatísticas agregadas do corpus e do arquivo de índice vetorial |
-| `POST` | `/query` | Executa consulta no pipeline RAG com recuperação vetorial e geração local |
+| `POST` | `/query` | Executa consulta síncrona RAG com suporte ao Cache LRU compartilhado |
+| `POST` | `/tasks/query` | Enfileira consulta RAG de forma assíncrona (operação de produtor) |
+| `GET` | `/tasks/{task_id}` | Consulta estado, tempos de espera/execução e resultado de uma tarefa |
+| `GET` | `/tasks` | Lista tarefas recentes registradas em memória |
+| `GET` | `/tasks/metrics` | Métricas de concorrência, produtores, consumidores e ocupação da fila |
+| `POST` | `/tasks/workers/scale` | Redimensiona dinamicamente a quantidade de workers ativos (1, 2, 4) |
+| `POST` | `/tasks/capacity` | Altera dinamicamente a capacidade máxima da fila compartilhada |
+| `GET` | `/cache/stats` | Estatísticas do Cache LRU (hits, misses, evictions, hit rate, tempo economizado) |
+| `GET` | `/cache/keys` | Lista chaves armazenadas no cache ordenadas de LRU para MRU |
+| `POST` | `/cache/capacity` | Redimensiona dinamicamente a capacidade do cache (demonstração de eviction) |
+| `POST` | `/cache/clear` | Esvazia o cache e zera as métricas de acertos e falhas |
 | `GET` | `/experiments` | Lista catálogo dos experimentos C1 a C6 e D |
 
 ---
@@ -206,3 +216,80 @@ curl -s -X POST http://localhost:8001/query \
   - `MAX_CHUNKS_PER_DOC`: Impede que um único documento gere mais de 2.000 chunks.
   - `MAX_TOP_K`: Limita o número de trechos recuperados a no máximo 20.
   - `MAX_CONTEXT_CHARS`: Trunca o contexto antes de enviar ao LLM, evitando estouro de janela e alocação abusiva de memória.
+
+---
+
+## 7. Fila Compartilhada e Concorrência
+
+A aplicação implementa um padrão clássico de **Produtores e Consumidores** baseado em `queue.Queue` com capacidade limitada:
+
+- **Produtores:** Múltiplas requisições HTTP submetem tarefas via `POST /tasks/query`. A resposta é imediata (`202 Accepted`), retornando o `task_id` sem bloquear o cliente.
+- **Consumidores (Workers):** Threads em background retiram tarefas da fila com espera bloqueante (`Condition Variables`) e timeout, evitando espera ocupada (*busy-waiting*).
+- **Controle de Saturação:** Se a fila atingir sua capacidade máxima (`maxsize`), novas tentativas de enfileiramento bloqueiam até o timeout configurado (`QUEUE_PUT_TIMEOUT = 3.0s`). Se não houver desocupação, a API rejeita com `HTTP 503 Service Unavailable`.
+- **Escalonamento Dinâmico:** É possível redimensionar a quantidade de workers ativos (1, 2, 4) em tempo de execução via `POST /tasks/workers/scale`.
+
+### Submeter uma Tarefa Assíncrona
+```bash
+curl -s -X POST http://localhost:8001/tasks/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Qual a funcao da MMU no Linux?", "top_k": 2, "use_cache": true}' | jq .
+```
+
+### Consultar o Estado e Resultado da Tarefa
+```bash
+curl -s http://localhost:8001/tasks/{task_id} | jq .
+```
+
+### Visualizar Métricas da Fila
+```bash
+curl -s http://localhost:8001/tasks/metrics | jq .
+```
+
+---
+
+## 8. Cache Compartilhado LRU
+
+O cache em memória (`SharedLRUCache`) armazena respostas de consultas frequentes:
+
+- **Segurança Concorrente:** Todas as operações de leitura e escrita são protegidas por `threading.Lock`.
+- **Chave Determinística:** Baseada no hash da pergunta normalizada e nos parâmetros que alteram a resposta (`top_k`, `max_context_chars`).
+- **Política de Substituição:** Baseada em recência de acesso (`OrderedDict.move_to_end`). Ao atingir a capacidade, o item menos recentemente utilizado é desalocado (*eviction*).
+- **Métricas:** Registra acertos (*hits*), falhas (*misses*), remoções (*evictions*), taxa de acerto (*hit rate*) e tempo de processamento economizado (*total_time_saved_ms*).
+
+### Consultar Estatísticas do Cache
+```bash
+curl -s http://localhost:8001/cache/stats | jq .
+```
+
+### Inspecionar Ordem LRU das Chaves
+```bash
+curl -s http://localhost:8001/cache/keys | jq .
+```
+
+### Redimensionar Capacidade (Forçar Eviction)
+```bash
+curl -s -X POST http://localhost:8001/cache/capacity \
+  -H "Content-Type: application/json" \
+  -d '{"capacity": 5}' | jq .
+```
+
+---
+
+## 9. Execução dos Scripts de Teste de Concorrência
+
+Para validar de ponta a ponta o funcionamento concorrente e do cache, utilize os atalhos do `Makefile` ou execute os scripts diretamente:
+
+```bash
+# Executar todos os testes automatizados
+make test
+
+# Ou executar individualmente:
+make test-concurrency   # Testa 2 produtores, 2 workers e o Cache LRU
+make test-queue         # Testa saturação de fila cheia (HTTP 503) e escala de workers
+```
+
+Ou diretamente via Python:
+```bash
+./.venv/bin/python3 scripts/test_concurrency_and_cache.py
+./.venv/bin/python3 scripts/test_queue_full_and_scaling.py
+```
