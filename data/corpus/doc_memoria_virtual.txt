@@ -1,0 +1,9 @@
+O gerenciamento de memória virtual no Linux baseia-se no conceito de paginação sob demanda. Cada processo possui seu próprio espaço de endereçamento virtual isolado, dividido em páginas de tamanho fixo, tipicamente de 4 KiB na arquitetura x86-64.
+
+A Unidade de Gerenciamento de Memória (MMU) do processador, auxiliada pelas tabelas de páginas do kernel Linux, traduz endereços virtuais para endereços físicos na RAM. Quando um processo tenta acessar uma página virtual que ainda não está mapeada em um quadro físico de memória, o hardware gera uma interrupção denominada falta de página (page fault).
+
+Existem dois tipos fundamentais de page faults no Linux:
+1. Minor Page Fault (falta leve): Ocorre quando a página já está residente na memória física (por exemplo, no Page Cache do sistema operacional ou compartilhada por outro processo), necessitando apenas da atualização da tabela de páginas sem acesso ao disco.
+2. Major Page Fault (falta grave): Ocorre quando os dados precisam ser lidos do armazenamento secundário (disco rígido ou SSD) ou trazidos da partição de swap para a RAM, incorrendo em latência de entrada e saída substancialmente maior.
+
+O kernel Linux utiliza métricas como RSS (Resident Set Size), que representa a porção da memória do processo atualmente residente na RAM, e VSZ (Virtual Memory Size), que reflete a totalidade do espaço de endereçamento virtual alocado.

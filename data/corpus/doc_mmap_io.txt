@@ -1,0 +1,10 @@
+A chamada de sistema mmap() permite mapear um arquivo ou dispositivo diretamente no espaço de endereçamento virtual de um processo em Linux.
+
+Ao contrário da leitura convencional de arquivos via chamadas read(), que exigem cópias repetidas de dados entre o buffer do kernel (Page Cache) e o buffer de memória do usuário no espaço de usuário, o mmap permite acesso direto aos dados via ponteiros de memória através da MMU.
+
+Vantagens do mmap:
+- Elimina a sobrecarga de cópias redundantes de memória (zero-copy overhead).
+- Páginas do arquivo são carregadas sob demanda (lazy paging) pelo mecanismo de faltas de página do kernel.
+- Se múltiplas tarefas mapeiam o mesmo arquivo com MAP_SHARED, elas compartilham as mesmas páginas físicas na RAM, economizando memória.
+
+No entanto, leituras por mmap podem incorrer em faltas de página graves se o arquivo não estiver previamente em cache, gerando latência na primeira execução. Em arquivos grandes, como matrizes de embeddings ou checkpoints de modelos de IA, o mmap oferece grande eficiência porque evita a alocação de toda a estrutura de dados na memória heap do processo.
