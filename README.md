@@ -116,7 +116,17 @@ Documentação Swagger interativa: [http://localhost:8001/docs](http://localhost
 | `POST` | `/cache/clear` | Esvazia o cache e zera as métricas de acertos e falhas |
 | `GET` | `/experiments` | Lista catálogo dos experimentos C1 a C6 e D |
 | `POST` | `/experiments/race-condition` | Executa o Experimento D (Condição de Corrida vs Lock) com métricas de perda |
-| `GET` | `/experiments/race-condition/history` | Consulta o histórico de execuções do Experimento D persistidas no SQLite |
+| `POST` | `/experiments/c1-read` | Executa o Experimento C1 (Leitura Convencional com open/read) |
+| `POST` | `/experiments/c2-mmap` | Executa o Experimento C2 (Leitura Mapeada com mmap) |
+| `POST` | `/experiments/c1-c2-compare` | Executa Comparação Direta C1 vs C2 sequencialmente |
+| `POST` | `/experiments/c3-concurrency` | Executa o Experimento C3 (Escalabilidade da Fila: 1, 2 e 4 Workers) |
+| `POST` | `/experiments/c4-cache` | Executa o Experimento C4 (Eficiência do Cache LRU: Sem Cache, Frio, Aquecido) |
+| `POST` | `/experiments/c5-memory-pressure` | Executa o Experimento C5 (Pressão de Memória: RSS, VSZ, Page Faults, GC) |
+| `POST` | `/experiments/c6-fault-tolerance` | Executa o Experimento C6 (Tolerância a Falhas: Retry, Descarte, Saturação) |
+| `GET` | `/experiments/{code}/results` | Consulta o histórico de execuções persistidas no SQLite (ex: EXP_C3_CONCURRENCY) |
+| `GET` | `/experiments/{code}/plot` | Retorna o gráfico PNG gerado pelo experimento |
+| `GET` | `/experiments/{code}/csv` | Baixa o arquivo CSV com dados brutos de cada repetição |
+
 
 ---
 
@@ -336,7 +346,62 @@ curl -s http://localhost:8001/experiments/race-condition/history?limit=10 | jq .
 
 ---
 
-## 11. Limitações Conhecidas
+## 11. Experimentos (C1 a C6)
+
+Todos os experimentos foram implementados respeitando a regra de **dados reais gerados pelo próprio kernel Linux e processo do servidor**, sem geração de números artificiais ou fictícios.
+
+### C1 — Leitura Convencional de Arquivos (`open()` e `read()`)
+- **Conceito de SO:** Realiza cópia de dados do espaço de endereçamento do Kernel para o espaço de endereçamento do Usuário (*context-switch* e sobrecarga de cópia).
+- **Endpoint:** `POST /experiments/c1-read`
+- **Métricas:** Duração (ms), Vazão (MB/s), Minor Page Faults (`ru_minflt`), Major Page Faults (`ru_majflt`).
+
+### C2 — Leitura Utilizando Mapeamento de Memória (`mmap`)
+- **Conceito de SO:** Utiliza a chamada de sistema `mmap()` para mapear o arquivo diretamente na tabela de páginas do processo, eliminando a cópia redundante (*zero-copy*) e ativando paginação sob demanda (*lazy paging* via MMU).
+- **Endpoint:** `POST /experiments/c2-mmap`
+- **Comparação C1 vs C2:** `POST /experiments/c1-c2-compare`
+
+### C3 — Concorrência na Fila Compartilhada (1, 2 e 4 Workers)
+- **Conceito de SO:** Padrão clássico de Produtores e Consumidores concorrentes sobre buffer limitado (`queue.Queue`) sincronizado com variáveis de condição (`threading.Condition`).
+- **Endpoint:** `POST /experiments/c3-concurrency`
+- **Métricas:** Vazão (*throughput* em tarefas/s), Latência média (ms), Tempo de espera na fila (ms), Speedup escalando de 1 para 2 e 4 workers.
+
+### C4 — Eficiência do Cache Compartilhado LRU
+- **Conceito de SO:** Princípio da Localidade Temporal e Espacial com política determinística de substituição LRU (*Least Recently Used*). Proteção de região crítica via `threading.Lock`.
+- **Endpoint:** `POST /experiments/c4-cache`
+- **Cenários Avaliados:** Sem Cache, Cache Frio (Misses), Cache Aquecido (Hits 100%, redução drástica de latência) e Transbordo de Capacidade (Evicções LRU).
+
+### C5 — Impacto de Memória sob Pressão Controlada
+- **Conceito de SO:** Alocação de memória virtual (*lazy allocation* do Linux) versus consumo efetivo de memória física (RSS - *Resident Set Size*). O toque de página a cada 4 KiB gera faltas de página menores (*Minor Page Faults*) proporcionais ao tamanho alocado (ex: 25.600 faltas para 100 MB). Demonstração da liberação explícita de memória e Garbage Collection preventivo contra o *OOM Killer*.
+- **Endpoint:** `POST /experiments/c5-memory-pressure`
+
+### C6 — Tolerância a Falhas e Recuperação
+- **Conceito de SO:** Isolamento de falhas, resiliência de pools de threads (*worker survivability*), política de retentativas (*retry*) versus descarte seguro (*permanent failure*), e controle de sobrecarga por contra-pressão (*backpressure*) em fila saturada com teste de continuidade de serviço.
+- **Endpoint:** `POST /experiments/c6-fault-tolerance`
+
+---
+
+## 12. Consulta de Histórico e Download de Artefatos Gráficos e Tabulares
+
+A API disponibiliza endpoints para recuperar os resultados persistidos no banco de dados SQLite (`genresearch.db`), bem como visualizar os gráficos renderizados pelo Matplotlib e baixar os arquivos brutos CSV:
+
+| Rota | Tipo | Descrição |
+|---|---|---|
+| `GET /experiments/{code}/results` | JSON | Consulta histórico de execuções persistidas no SQLite (ex: `c1_c2`, `c3`, `c4`, `c5`, `c6`) |
+| `GET /experiments/{code}/plot` | PNG | Baixa ou visualiza na interface o gráfico gerado pelo Matplotlib |
+| `GET /experiments/{code}/csv` | CSV | Baixa a planilha tabular com todas as repetições e métricas do experimento |
+
+### Exemplos via curl:
+```bash
+# Baixar o gráfico de escalabilidade C3
+curl -s http://localhost:8001/experiments/c3/plot -o grafico_c3.png
+
+# Baixar os dados brutos de memória C5 em CSV
+curl -s http://localhost:8001/experiments/c5/csv -o dados_c5.csv
+```
+
+---
+
+## 13. Limitações Conhecidas
 
 1. **GIL (Global Interpreter Lock):** Como o runtime padrão do CPython utiliza GIL, tarefas puramente CPU-bound em threads não utilizam múltiplos núcleos simultaneamente. Contudo, as operações do nosso pipeline são primordialmente **I/O-bound** (chamadas de rede/HTTP locais ao daemon do Ollama e I/O de disco SQLite/NumPy), onde o GIL é prontamente liberado durante as operações de entrada e saída.
 2. **Escala de Workers vs. Capacidade da GPU:** Aumentar indefinidamente o número de workers pode causar contenção de fila no próprio daemon do Ollama, que serializa ou enfileira inferências caso a VRAM da GPU seja saturada.

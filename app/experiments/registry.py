@@ -13,7 +13,7 @@ def get_experiments_catalog() -> List[Dict[str, Any]]:
             "code": "C1",
             "name": "Leitura Convencional de Arquivos",
             "category": "Armazenamento e Memória Virtual",
-            "status": "planejado",
+            "status": "implementado",
             "description": (
                 "Estabelece a linha de base de tempo, RSS e faltas de página utilizando "
                 "leitura convencional com open() e read()."
@@ -25,7 +25,7 @@ def get_experiments_catalog() -> List[Dict[str, Any]]:
             "code": "C2",
             "name": "Leitura por Memória Mapeada (mmap)",
             "category": "Armazenamento e Memória Virtual",
-            "status": "planejado",
+            "status": "implementado",
             "description": (
                 "Avalia a leitura do corpus através de mapeamento de memória mmap.mmap(), "
                 "comparando com C1 em latência, RSS e faltas de página sob page cache quente/frio."
@@ -37,7 +37,7 @@ def get_experiments_catalog() -> List[Dict[str, Any]]:
             "code": "C3",
             "name": "Concorrência com Fila Compartilhada",
             "category": "Concorrência e Sincronização",
-            "status": "planejado",
+            "status": "implementado",
             "description": (
                 "Avalia o comportamento de múltiplos produtores e consumidores concorrentes "
                 "(1, 2 e 4 workers) sobre uma fila de requisições limitada."
@@ -49,7 +49,7 @@ def get_experiments_catalog() -> List[Dict[str, Any]]:
             "code": "C4",
             "name": "Cache Compartilhado e Substituição",
             "category": "Gerenciamento de Memória e Desempenho",
-            "status": "planejado",
+            "status": "implementado",
             "description": (
                 "Mede a taxa de acerto (hit), taxa de erro (miss) e políticas de substituição "
                 "em consultas repetidas e semanticamente variadas."
@@ -61,7 +61,7 @@ def get_experiments_catalog() -> List[Dict[str, Any]]:
             "code": "C5",
             "name": "Pressão de Memória e Limites",
             "category": "Memória Principal e Virtual",
-            "status": "planejado",
+            "status": "implementado",
             "description": (
                 "Aumenta controladamente o volume do corpus e lote para observar degradação, "
                 "ocupação de RSS/VSZ e comportamento diante de esgotamento de memória."
@@ -73,7 +73,7 @@ def get_experiments_catalog() -> List[Dict[str, Any]]:
             "code": "C6",
             "name": "Tratamento de Falhas Controladas",
             "category": "Robustez e Sistema Operacional",
-            "status": "planejado",
+            "status": "implementado",
             "description": (
                 "Injeta falhas intencionais (arquivo inexistente, saturação de fila, timeout de LLM) "
                 "e avalia a capacidade de recuperação e isolamento."

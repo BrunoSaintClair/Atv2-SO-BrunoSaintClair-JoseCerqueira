@@ -30,6 +30,10 @@ test-race-condition:
 	@echo "==> Executando Experimento D (Condição de Corrida vs Sincronização)..."
 	PYTHONPATH=. $(PYTHON) scripts/test_race_condition.py
 
+test-experiments:
+	@echo "==> Executando Experimentos Acadêmicos C1 a C6..."
+	PYTHONPATH=. $(PYTHON) scripts/run_all_c_experiments.py
+
 test-concurrency:
 	@echo "==> Executando teste de concorrência e cache LRU..."
 	PYTHONPATH=. $(PYTHON) scripts/test_concurrency_and_cache.py
@@ -38,8 +42,8 @@ test-queue:
 	@echo "==> Executando teste de saturação de fila e escala de workers..."
 	PYTHONPATH=. $(PYTHON) scripts/test_queue_full_and_scaling.py
 
-test: test-race-condition test-concurrency test-queue
-	@echo "==> Todos os testes de validação foram concluídos com sucesso!"
+test: test-race-condition test-concurrency test-queue test-experiments
+	@echo "==> Todos os testes e experimentos foram concluídos com sucesso!"
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +

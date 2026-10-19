@@ -1,0 +1,151 @@
+{
+  "experiment_code": "C6_FAULT",
+  "parameters": {
+    "faulty_count": 10
+  },
+  "summary": {
+    "falhas_transitórias_retry": {
+      "scenario": "Falhas Transitórias (Retry)",
+      "average_success_tasks": 10.0,
+      "average_recovered_tasks": 10.0,
+      "average_failed_tasks": 0.0,
+      "all_workers_survived": true,
+      "queue_consistency_preserved": true
+    },
+    "falhas_persistentes_descarte": {
+      "scenario": "Falhas Persistentes (Descarte)",
+      "average_success_tasks": 0.0,
+      "average_recovered_tasks": 0.0,
+      "average_failed_tasks": 10.0,
+      "all_workers_survived": true,
+      "queue_consistency_preserved": true
+    },
+    "saturação_de_fila": {
+      "scenario": "Saturação de Fila",
+      "average_success_tasks": 6.0,
+      "average_recovered_tasks": 0.0,
+      "average_failed_tasks": 10.0,
+      "all_workers_survived": true,
+      "queue_consistency_preserved": true
+    }
+  },
+  "trials": [
+    {
+      "run_id": 1,
+      "repetition": 1,
+      "scenario_name": "Falhas Transitórias (Retry)",
+      "faults_injected": 10,
+      "max_retries_configured": 2,
+      "success_tasks": 10,
+      "recovered_tasks": 10,
+      "failed_tasks": 0,
+      "duration_ms": 50.71,
+      "workers_survived": 2,
+      "queue_consistent": true
+    },
+    {
+      "run_id": 2,
+      "repetition": 1,
+      "scenario_name": "Falhas Persistentes (Descarte)",
+      "faults_injected": 10,
+      "max_retries_configured": 1,
+      "success_tasks": 0,
+      "recovered_tasks": 0,
+      "failed_tasks": 10,
+      "duration_ms": 50.87,
+      "workers_survived": 2,
+      "queue_consistent": true
+    },
+    {
+      "run_id": 3,
+      "repetition": 1,
+      "scenario_name": "Saturação de Fila",
+      "faults_injected": 10,
+      "max_retries_configured": 0,
+      "success_tasks": 6,
+      "recovered_tasks": 0,
+      "failed_tasks": 10,
+      "duration_ms": 1055.28,
+      "workers_survived": 2,
+      "queue_consistent": true
+    },
+    {
+      "run_id": 4,
+      "repetition": 2,
+      "scenario_name": "Falhas Transitórias (Retry)",
+      "faults_injected": 10,
+      "max_retries_configured": 2,
+      "success_tasks": 10,
+      "recovered_tasks": 10,
+      "failed_tasks": 0,
+      "duration_ms": 952.74,
+      "workers_survived": 2,
+      "queue_consistent": true
+    },
+    {
+      "run_id": 5,
+      "repetition": 2,
+      "scenario_name": "Falhas Persistentes (Descarte)",
+      "faults_injected": 10,
+      "max_retries_configured": 1,
+      "success_tasks": 0,
+      "recovered_tasks": 0,
+      "failed_tasks": 10,
+      "duration_ms": 50.68,
+      "workers_survived": 2,
+      "queue_consistent": true
+    },
+    {
+      "run_id": 6,
+      "repetition": 2,
+      "scenario_name": "Saturação de Fila",
+      "faults_injected": 10,
+      "max_retries_configured": 0,
+      "success_tasks": 6,
+      "recovered_tasks": 0,
+      "failed_tasks": 10,
+      "duration_ms": 1056.8,
+      "workers_survived": 2,
+      "queue_consistent": true
+    },
+    {
+      "run_id": 7,
+      "repetition": 3,
+      "scenario_name": "Falhas Transitórias (Retry)",
+      "faults_injected": 10,
+      "max_retries_configured": 2,
+      "success_tasks": 10,
+      "recovered_tasks": 10,
+      "failed_tasks": 0,
+      "duration_ms": 952.83,
+      "workers_survived": 2,
+      "queue_consistent": true
+    },
+    {
+      "run_id": 8,
+      "repetition": 3,
+      "scenario_name": "Falhas Persistentes (Descarte)",
+      "faults_injected": 10,
+      "max_retries_configured": 1,
+      "success_tasks": 0,
+      "recovered_tasks": 0,
+      "failed_tasks": 10,
+      "duration_ms": 51.04,
+      "workers_survived": 2,
+      "queue_consistent": true
+    },
+    {
+      "run_id": 9,
+      "repetition": 3,
+      "scenario_name": "Saturação de Fila",
+      "faults_injected": 10,
+      "max_retries_configured": 0,
+      "success_tasks": 6,
+      "recovered_tasks": 0,
+      "failed_tasks": 10,
+      "duration_ms": 1057.62,
+      "workers_survived": 2,
+      "queue_consistent": true
+    }
+  ]
+}

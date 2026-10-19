@@ -220,24 +220,97 @@ class TaskQueueManager:
                     exec_ms = (record.completed_at - record.started_at) * 1000.0
                     self._total_exec_time_ms += exec_ms
             except Exception as err:
-                logger.exception("Erro durante processamento da tarefa %s no worker %s", task_id, worker_name)
+                logger.warning("Erro durante processamento da tarefa %s no worker %s: %s", task_id, worker_name, err)
+                re_enqueue = False
                 with self._tasks_lock:
-                    record.status = TaskStatus.FAILED
-                    record.completed_at = time.time()
-                    record.error = str(err)
-                    self._failed_count += 1
-                    self._in_progress_count -= 1
+                    retries = record.payload.get("retries_done", 0)
+                    max_retries = record.payload.get("max_retries", 0)
+                    if retries < max_retries:
+                        record.payload["retries_done"] = retries + 1
+                        record.status = TaskStatus.QUEUED
+                        record.error = f"Retentando ({retries+1}/{max_retries}): {str(err)}"
+                        self._in_progress_count -= 1
+                        re_enqueue = True
+                    else:
+                        record.status = TaskStatus.FAILED
+                        record.completed_at = time.time()
+                        record.error = str(err)
+                        self._failed_count += 1
+                        self._in_progress_count -= 1
+
+                if re_enqueue:
+                    try:
+                        self._queue.put(task_id, block=False)
+                    except queue.Full:
+                        with self._tasks_lock:
+                            record.status = TaskStatus.FAILED
+                            record.completed_at = time.time()
+                            record.error = f"Fila saturada ao tentar retentar: {str(err)}"
+                            self._failed_count += 1
             finally:
                 self._queue.task_done()
 
         logger.info("Worker [%s] finalizado de forma limpa.", worker_name)
 
+    def wait_completion(self, timeout: float = 30.0) -> bool:
+        """Bloqueia até que todas as tarefas da fila sejam concluídas ou expire o timeout."""
+        start = time.time()
+        while time.time() - start < timeout:
+            with self._tasks_lock:
+                if self._queue.empty() and self._in_progress_count == 0:
+                    return True
+            time.sleep(0.05)
+        return False
+
     def _process_task_payload(self, task_type: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Executa a lógica real associada ao tipo da tarefa."""
         if task_type == "rag_query":
             return self._execute_rag_query_task(payload)
+        elif task_type == "benchmark_task":
+            return self._execute_benchmark_task(payload)
+        elif task_type == "fault_test":
+            return self._execute_fault_test_task(payload)
         else:
             raise ValueError(f"Tipo de tarefa desconhecido: '{task_type}'")
+
+    def _execute_benchmark_task(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Executa tarefa computacional determinística para medição de concorrência."""
+        import hashlib
+        work_ms = payload.get("work_ms", 15.0)
+        iterations = payload.get("iterations", 3000)
+        data = (payload.get("data", "genresearch_worker_benchmark") * 8).encode()
+
+        start = time.perf_counter_ns()
+        h = hashlib.sha256()
+        for i in range(iterations):
+            h.update(data)
+            h.update(str(i).encode())
+
+        elapsed_ms = (time.perf_counter_ns() - start) / 1_000_000.0
+        if work_ms > elapsed_ms:
+            time.sleep((work_ms - elapsed_ms) / 1000.0)
+            elapsed_ms = (time.perf_counter_ns() - start) / 1_000_000.0
+
+        return {
+            "digest": h.hexdigest()[:16],
+            "iterations": iterations,
+            "elapsed_ms": round(elapsed_ms, 2)
+        }
+
+    def _execute_fault_test_task(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Executa tarefa de simulação de falhas e recuperação para o experimento C6."""
+        should_fail = payload.get("should_fail", False)
+        fail_attempts = payload.get("fail_attempts", 1)
+        current_attempt = payload.get("retries_done", 0)
+
+        if should_fail and current_attempt < fail_attempts:
+            raise RuntimeError(payload.get("error_message", "Falha controlada injetada para teste C6"))
+
+        return {
+            "recovered": current_attempt > 0,
+            "attempts_needed": current_attempt + 1,
+            "message": "Tarefa de teste concluída com sucesso"
+        }
 
     def _execute_rag_query_task(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Executa a consulta RAG utilizando o cache compartilhado e os modelos locais."""

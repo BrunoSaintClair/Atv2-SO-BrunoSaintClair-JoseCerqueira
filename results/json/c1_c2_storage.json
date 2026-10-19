@@ -1,0 +1,113 @@
+{
+  "experiment_code": "C1_C2_STORAGE",
+  "parameters": {
+    "mode": "both",
+    "file_size_mb": 10
+  },
+  "summary": {
+    "conventional": {
+      "repetitions": 3,
+      "average_duration_ms": 3.897,
+      "average_throughput_mb_s": 2558.85,
+      "average_minor_faults": 0.0,
+      "notes": "Dados lidos podem estar em Page Cache do kernel após a primeira iteração."
+    },
+    "mmap": {
+      "repetitions": 3,
+      "average_duration_ms": 3.612,
+      "average_throughput_mb_s": 2709.69,
+      "average_minor_faults": 156.0,
+      "notes": "Dados lidos podem estar em Page Cache do kernel após a primeira iteração."
+    },
+    "comparison": {
+      "mmap_vs_conventional_duration_diff_percent": -7.31,
+      "interpretation": "mmap evita sobrecargas de cópia de memória entre espaço de kernel e usuário (zero-copy), mas o desempenho efetivo depende do estado do Page Cache e da granularidade do acesso."
+    }
+  },
+  "trials": [
+    {
+      "run_id": 1,
+      "repetition": 1,
+      "method": "conventional",
+      "file_size_mb": 9.75,
+      "chunk_size_kb": 64,
+      "bytes_read": 10221120,
+      "duration_ms": 4.76,
+      "throughput_mb_s": 2047.82,
+      "rss_before_mb": 124.34,
+      "rss_after_mb": 124.34,
+      "minor_page_faults": 0,
+      "major_page_faults": 0
+    },
+    {
+      "run_id": 2,
+      "repetition": 2,
+      "method": "conventional",
+      "file_size_mb": 9.75,
+      "chunk_size_kb": 64,
+      "bytes_read": 10221120,
+      "duration_ms": 3.401,
+      "throughput_mb_s": 2866.25,
+      "rss_before_mb": 124.34,
+      "rss_after_mb": 124.34,
+      "minor_page_faults": 0,
+      "major_page_faults": 0
+    },
+    {
+      "run_id": 3,
+      "repetition": 3,
+      "method": "conventional",
+      "file_size_mb": 9.75,
+      "chunk_size_kb": 64,
+      "bytes_read": 10221120,
+      "duration_ms": 3.529,
+      "throughput_mb_s": 2762.48,
+      "rss_before_mb": 124.34,
+      "rss_after_mb": 124.34,
+      "minor_page_faults": 0,
+      "major_page_faults": 0
+    },
+    {
+      "run_id": 4,
+      "repetition": 1,
+      "method": "mmap",
+      "file_size_mb": 9.75,
+      "chunk_size_kb": 64,
+      "bytes_read": 10221120,
+      "duration_ms": 3.305,
+      "throughput_mb_s": 2949.1,
+      "rss_before_mb": 124.34,
+      "rss_after_mb": 124.34,
+      "minor_page_faults": 156,
+      "major_page_faults": 0
+    },
+    {
+      "run_id": 5,
+      "repetition": 2,
+      "method": "mmap",
+      "file_size_mb": 9.75,
+      "chunk_size_kb": 64,
+      "bytes_read": 10221120,
+      "duration_ms": 3.862,
+      "throughput_mb_s": 2524.07,
+      "rss_before_mb": 124.34,
+      "rss_after_mb": 124.34,
+      "minor_page_faults": 156,
+      "major_page_faults": 0
+    },
+    {
+      "run_id": 6,
+      "repetition": 3,
+      "method": "mmap",
+      "file_size_mb": 9.75,
+      "chunk_size_kb": 64,
+      "bytes_read": 10221120,
+      "duration_ms": 3.67,
+      "throughput_mb_s": 2655.89,
+      "rss_before_mb": 124.34,
+      "rss_after_mb": 124.34,
+      "minor_page_faults": 156,
+      "major_page_faults": 0
+    }
+  ]
+}
