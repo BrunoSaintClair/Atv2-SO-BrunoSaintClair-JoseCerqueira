@@ -356,3 +356,55 @@ def log_rag_query(
             """,
             (request_id, question, retrieved_count, answer, latency_ms, int(cache_hit))
         )
+
+
+def save_experiment_run(
+    experiment_code: str,
+    run_id: int,
+    parameters: Dict[str, Any],
+    metrics: Dict[str, Any],
+    system_state: Optional[Dict[str, Any]] = None
+) -> int:
+    """Persiste os resultados e configurações de uma execução experimental no SQLite."""
+    params_str = json.dumps(parameters)
+    metrics_str = json.dumps(metrics)
+    state_str = json.dumps(system_state or {})
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO experiment_runs (experiment_code, run_id, parameters_json, metrics_json, system_state_json)
+            VALUES (?, ?, ?, ?, ?);
+            """,
+            (experiment_code, run_id, params_str, metrics_str, state_str)
+        )
+        return cursor.lastrowid
+
+
+def get_experiment_runs(experiment_code: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """Consulta o histórico de execuções de um experimento específico."""
+    query = """
+        SELECT id, experiment_code, run_id, parameters_json, metrics_json, system_state_json, created_at
+        FROM experiment_runs
+        WHERE experiment_code = ?
+        ORDER BY id DESC
+        LIMIT ?;
+    """
+    with get_db_connection(read_only=True) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, (experiment_code, limit))
+        rows = cursor.fetchall()
+        
+        results = []
+        for r in rows:
+            results.append({
+                "id": r["id"],
+                "experiment_code": r["experiment_code"],
+                "run_id": r["run_id"],
+                "parameters": json.loads(r["parameters_json"]),
+                "metrics": json.loads(r["metrics_json"]),
+                "system_state": json.loads(r["system_state_json"]),
+                "created_at": r["created_at"]
+            })
+        return results

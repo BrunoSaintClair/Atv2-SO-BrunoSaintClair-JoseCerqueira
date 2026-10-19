@@ -85,12 +85,12 @@ def get_experiments_catalog() -> List[Dict[str, Any]]:
             "code": "D",
             "name": "Condição de Corrida e Sincronização Obrigatória",
             "category": "Sincronização",
-            "status": "planejado",
+            "status": "implementado",
             "description": (
-                "Demonstra uma falha de sincronização (ex: atualização perdida no cache sem lock) "
-                "e sua subsequente correção determinística utilizando primitivas de sincronização."
+                "Demonstra uma falha de sincronização (atualização perdida por race condition) "
+                "e sua subsequente correção determinística utilizando exclusão mútua com threading.Lock."
             ),
-            "variables": ["concurrency_threads", "use_lock", "race_window_ms"],
+            "variables": ["num_threads", "increments_per_thread", "use_lock", "inject_interleaving"],
             "mandatory": True
         }
     ]

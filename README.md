@@ -115,6 +115,8 @@ Documentação Swagger interativa: [http://localhost:8001/docs](http://localhost
 | `POST` | `/cache/capacity` | Redimensiona dinamicamente a capacidade do cache (demonstração de eviction) |
 | `POST` | `/cache/clear` | Esvazia o cache e zera as métricas de acertos e falhas |
 | `GET` | `/experiments` | Lista catálogo dos experimentos C1 a C6 e D |
+| `POST` | `/experiments/race-condition` | Executa o Experimento D (Condição de Corrida vs Lock) com métricas de perda |
+| `GET` | `/experiments/race-condition/history` | Consulta o histórico de execuções do Experimento D persistidas no SQLite |
 
 ---
 
@@ -280,16 +282,61 @@ curl -s -X POST http://localhost:8001/cache/capacity \
 Para validar de ponta a ponta o funcionamento concorrente e do cache, utilize os atalhos do `Makefile` ou execute os scripts diretamente:
 
 ```bash
-# Executar todos os testes automatizados
+# Executar todos os testes automatizados (Experimento D + Fila + Cache)
 make test
 
 # Ou executar individualmente:
-make test-concurrency   # Testa 2 produtores, 2 workers e o Cache LRU
-make test-queue         # Testa saturação de fila cheia (HTTP 503) e escala de workers
+make test-race-condition # Executa o Experimento D (Condição de Corrida vs Sincronização)
+make test-concurrency    # Testa 2 produtores, 2 workers e o Cache LRU
+make test-queue          # Testa saturação de fila cheia (HTTP 503) e escala de workers
 ```
 
-Ou diretamente via Python:
+---
+
+## 10. Experimento D — Demonstração de Condição de Corrida e Sincronização
+
+O Experimento D demonstra o problema clássico de **Atualização Perdida (*Lost Update*)** em um recurso compartilhado (Read-Modify-Write) acessado por múltiplas threads simultâneas:
+
+1. **Sem Proteção (`mode="unsynchronized"`):** As threads partem simultaneamente a partir de uma `threading.Barrier` e executam incrementos intercalados. Ocorre chaveamento de contexto no meio da leitura e escrita (`time.sleep(0)` cedendo a fatia de tempo), gerando **perdas médias de ~75% das atualizações**.
+2. **Com Sincronização (`mode="synchronized"`):** A mesma carga é executada sob exclusão mútua garantida por `threading.Lock`. **0% de perdas** e 100% de consistência observada.
+3. **Modo Comparativo (`mode="both"`):** Executa ambas as baterias com repetições configuráveis (padrão 3) e calcula a taxa de perda e a sobrecarga (*overhead*) de tempo do Lock.
+
+### Como Executar pelo Swagger UI
+1. Acesse: [http://localhost:8001/docs](http://localhost:8001/docs)
+2. Localize a seção **Experimentos** e expanda `POST /experiments/race-condition`.
+3. Clique em **Try it out** e utilize o payload padrão:
+   ```json
+   {
+     "num_threads": 4,
+     "increments_per_thread": 1000,
+     "mode": "both",
+     "repeat": 3,
+     "inject_interleaving": true
+   }
+   ```
+4. Clique em **Execute** e analise a resposta com o sumário comparativo.
+
+### Como Executar via curl
 ```bash
-./.venv/bin/python3 scripts/test_concurrency_and_cache.py
-./.venv/bin/python3 scripts/test_queue_full_and_scaling.py
+curl -s -X POST http://localhost:8001/experiments/race-condition \
+  -H "Content-Type: application/json" \
+  -d '{
+    "num_threads": 4,
+    "increments_per_thread": 2000,
+    "mode": "both",
+    "repeat": 3,
+    "inject_interleaving": true
+  }' | jq .
 ```
+
+### Consultar o Histórico Persistido no SQLite
+```bash
+curl -s http://localhost:8001/experiments/race-condition/history?limit=10 | jq .
+```
+
+---
+
+## 11. Limitações Conhecidas
+
+1. **GIL (Global Interpreter Lock):** Como o runtime padrão do CPython utiliza GIL, tarefas puramente CPU-bound em threads não utilizam múltiplos núcleos simultaneamente. Contudo, as operações do nosso pipeline são primordialmente **I/O-bound** (chamadas de rede/HTTP locais ao daemon do Ollama e I/O de disco SQLite/NumPy), onde o GIL é prontamente liberado durante as operações de entrada e saída.
+2. **Escala de Workers vs. Capacidade da GPU:** Aumentar indefinidamente o número de workers pode causar contenção de fila no próprio daemon do Ollama, que serializa ou enfileira inferências caso a VRAM da GPU seja saturada.
