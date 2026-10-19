@@ -10,6 +10,7 @@ import psutil
 
 from app.config import CORPUS_DIR, DATA_DIR
 from app.experiments.reporting import export_experiment_data, generate_c1_c2_plot
+from app.services.sampler import export_experiment_samples, sample_experiment
 from app.services.storage import save_experiment_run
 
 # Arquivo padrão para os testes de armazenamento
@@ -113,17 +114,33 @@ def run_storage_experiment(
     if mode in ("mmap", "both"):
         methods_to_test.append("mmap")
 
+    exp_code = "C1_CONVENTIONAL" if mode == "conventional" else ("C2_MMAP" if mode == "mmap" else "C1_C2_STORAGE")
+
     trials: List[Dict[str, Any]] = []
     trial_id = 1
 
     for method in methods_to_test:
         for rep in range(repeat):
-            rss_before = process.memory_info().rss
-            if method == "conventional":
-                bytes_read, duration_ms, min_flt, maj_flt = _read_conventional(test_file, chunk_size_bytes)
-            else:
-                bytes_read, duration_ms, min_flt, maj_flt = _read_mmap(test_file, chunk_size_bytes)
-            rss_after = process.memory_info().rss
+            with sample_experiment(exp_code, trial_id, interval_sec=0.01):
+                rss_before = process.memory_info().rss
+                try:
+                    io_before = process.io_counters()
+                except Exception:
+                    io_before = None
+
+                if method == "conventional":
+                    bytes_read, duration_ms, min_flt, maj_flt = _read_conventional(test_file, chunk_size_bytes)
+                else:
+                    bytes_read, duration_ms, min_flt, maj_flt = _read_mmap(test_file, chunk_size_bytes)
+
+                rss_after = process.memory_info().rss
+                try:
+                    io_after = process.io_counters()
+                    io_rchar_delta = getattr(io_after, "read_chars", 0) - getattr(io_before, "read_chars", 0) if io_before else None
+                    io_read_bytes_delta = io_after.read_bytes - io_before.read_bytes if io_before else None
+                except Exception:
+                    io_rchar_delta = None
+                    io_read_bytes_delta = None
 
             throughput_mb_s = (bytes_read / (1024 * 1024)) / (duration_ms / 1000.0) if duration_ms > 0 else 0.0
 
@@ -139,7 +156,10 @@ def run_storage_experiment(
                 "rss_before_mb": round(rss_before / (1024 * 1024), 2),
                 "rss_after_mb": round(rss_after / (1024 * 1024), 2),
                 "minor_page_faults": min_flt,
-                "major_page_faults": maj_flt
+                "major_page_faults": maj_flt,
+                "proc_io_rchar_requested": io_rchar_delta,
+                "proc_io_read_bytes_physical": io_read_bytes_delta,
+                "served_from_page_cache": (io_read_bytes_delta == 0) if io_read_bytes_delta is not None else True
             }
             trials.append(trial_record)
 
@@ -186,6 +206,13 @@ def run_storage_experiment(
     json_path, csv_path = export_experiment_data(exp_code, {"mode": mode, "file_size_mb": file_size_mb}, trials, summary)
     plot_path = generate_c1_c2_plot(trials)
 
+    # Exporta amostras de instrumentação de SO
+    samples_json, samples_csv = export_experiment_samples(exp_code)
+    if not samples_json:
+        # Se for individual, tenta pelos códigos dos métodos
+        for m in methods_to_test:
+            export_experiment_samples(f"EXP_{m.upper()}")
+
     return {
         "experiment_code": exp_code,
         "parameters": {
@@ -199,6 +226,8 @@ def run_storage_experiment(
         "artifacts": {
             "json": str(json_path.name),
             "csv": str(csv_path.name),
-            "plot": str(plot_path.name) if plot_path else None
+            "plot": str(plot_path.name) if plot_path else None,
+            "samples_csv": str(samples_csv.name) if samples_csv else None,
+            "samples_json": str(samples_json.name) if samples_json else None
         }
     }

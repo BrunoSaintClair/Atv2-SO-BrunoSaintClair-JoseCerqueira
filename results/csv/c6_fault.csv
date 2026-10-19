@@ -1,10 +1,10 @@
 run_id,repetition,scenario_name,faults_injected,max_retries_configured,success_tasks,recovered_tasks,failed_tasks,duration_ms,workers_survived,queue_consistent
-1,1,Falhas Transitórias (Retry),10,2,10,10,0,50.71,2,True
-2,1,Falhas Persistentes (Descarte),10,1,0,0,10,50.87,2,True
-3,1,Saturação de Fila,10,0,6,0,10,1055.28,2,True
-4,2,Falhas Transitórias (Retry),10,2,10,10,0,952.74,2,True
-5,2,Falhas Persistentes (Descarte),10,1,0,0,10,50.68,2,True
-6,2,Saturação de Fila,10,0,6,0,10,1056.8,2,True
-7,3,Falhas Transitórias (Retry),10,2,10,10,0,952.83,2,True
-8,3,Falhas Persistentes (Descarte),10,1,0,0,10,51.04,2,True
-9,3,Saturação de Fila,10,0,6,0,10,1057.62,2,True
+1,1,Falhas Transitórias (Retry),10,2,10,10,0,50.8,2,True
+2,1,Falhas Persistentes (Descarte),10,1,0,0,10,50.45,2,True
+3,1,Saturação de Fila,10,0,6,0,10,1055.2,2,True
+4,2,Falhas Transitórias (Retry),10,2,10,10,0,904.73,2,True
+5,2,Falhas Persistentes (Descarte),10,1,0,0,10,50.59,2,True
+6,2,Saturação de Fila,10,0,6,0,10,1005.49,2,True
+7,3,Falhas Transitórias (Retry),10,2,10,10,0,952.95,2,True
+8,3,Falhas Persistentes (Descarte),10,1,0,0,10,50.51,2,True
+9,3,Saturação de Fila,10,0,6,0,10,1055.8,2,True

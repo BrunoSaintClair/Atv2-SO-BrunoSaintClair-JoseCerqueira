@@ -15,7 +15,8 @@ from app.experiments.exp_race_condition import run_race_condition_experiment
 from app.experiments.exp_storage import run_storage_experiment
 from app.experiments.registry import get_experiments_catalog
 from app.services.metrics import record_request
-from app.services.storage import get_experiment_runs
+from app.services.sampler import export_experiment_samples
+from app.services.storage import get_experiment_runs, get_metric_samples
 
 router = APIRouter(prefix="/experiments", tags=["Experimentos"])
 
@@ -239,3 +240,59 @@ def get_experiment_csv(experiment_code: str):
             )
 
     return FileResponse(csv_file, media_type="text/csv", filename=csv_file.name)
+
+
+@router.get("/{experiment_code}/samples", summary="Consulta as amostras de séries temporais de métricas de um experimento")
+def get_experiment_samples(
+    experiment_code: str,
+    run_id: Optional[int] = Query(None, description="Filtra por run_id específico (opcional)"),
+    limit: int = Query(500, ge=1, le=5000, description="Limite máximo de amostras a retornar")
+) -> List[Dict[str, Any]]:
+    """
+    Retorna as amostras de telemetria de SO (fases before, during, after) coletadas durante
+    as execuções do experimento solicitado, persistidas no SQLite.
+    """
+    record_request()
+    code = experiment_code.upper()
+    return get_metric_samples(experiment_code=code, run_id=run_id, limit=limit)
+
+
+@router.get("/{experiment_code}/samples/csv", summary="Baixa as amostras de telemetria em formato CSV")
+def get_experiment_samples_csv(experiment_code: str):
+    """Gera e retorna o arquivo CSV com todas as amostras temporais de métricas de SO do experimento."""
+    record_request()
+    code = experiment_code.upper()
+    json_path, csv_path = export_experiment_samples(code)
+    if csv_path and csv_path.exists():
+        return FileResponse(csv_path, media_type="text/csv", filename=csv_path.name)
+
+    # Tenta pelo código minúsculo com prefixo
+    for candidate in [code, f"EXP_{code}", code.replace("-", "_")]:
+        json_p, csv_p = export_experiment_samples(candidate)
+        if csv_p and csv_p.exists():
+            return FileResponse(csv_p, media_type="text/csv", filename=csv_p.name)
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Nenhuma amostra encontrada para o experimento '{experiment_code}'. Execute o experimento primeiro."
+    )
+
+
+@router.get("/{experiment_code}/samples/json", summary="Baixa as amostras de telemetria em formato JSON")
+def get_experiment_samples_json(experiment_code: str):
+    """Gera e retorna o arquivo JSON com todas as amostras temporais de métricas de SO do experimento."""
+    record_request()
+    code = experiment_code.upper()
+    json_path, csv_path = export_experiment_samples(code)
+    if json_path and json_path.exists():
+        return FileResponse(json_path, media_type="application/json", filename=json_path.name)
+
+    for candidate in [code, f"EXP_{code}", code.replace("-", "_")]:
+        json_p, csv_p = export_experiment_samples(candidate)
+        if json_p and json_p.exists():
+            return FileResponse(json_p, media_type="application/json", filename=json_p.name)
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Nenhuma amostra encontrada para o experimento '{experiment_code}'. Execute o experimento primeiro."
+    )

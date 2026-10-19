@@ -7,6 +7,7 @@ import psutil
 from app.config import DEFAULT_QUEUE_MAXSIZE, DEFAULT_WORKERS_COUNT
 from app.experiments.reporting import export_experiment_data, generate_c6_plot
 from app.services.request_queue import QueueFullError, TaskStatus, task_queue_manager
+from app.services.sampler import export_experiment_samples, sample_experiment
 from app.services.storage import save_experiment_run
 
 
@@ -36,23 +37,24 @@ def run_fault_experiment(
             # -------------------------------------------------------------
             # Cenário 1: Falhas Transitórias com Retentativa Bem-Sucedida
             # -------------------------------------------------------------
-            start_time = time.perf_counter_ns()
-            submitted_ids = []
+            with sample_experiment("C6_FAULT", trial_id, interval_sec=0.03):
+                start_time = time.perf_counter_ns()
+                submitted_ids = []
 
-            for i in range(faulty_tasks_count):
-                rec = task_queue_manager.submit_task(
-                    task_type="fault_test",
-                    payload={
-                        "should_fail": True,
-                        "fail_attempts": 1,     # Falha na 1ª tentativa, sucede na 2ª
-                        "max_retries": max_retries,
-                        "error_message": f"Erro transitório de simulação #{i+1}"
-                    }
-                )
-                submitted_ids.append(rec.task_id)
+                for i in range(faulty_tasks_count):
+                    rec = task_queue_manager.submit_task(
+                        task_type="fault_test",
+                        payload={
+                            "should_fail": True,
+                            "fail_attempts": 1,     # Falha na 1ª tentativa, sucede na 2ª
+                            "max_retries": max_retries,
+                            "error_message": f"Erro transitório de simulação #{i+1}"
+                        }
+                    )
+                    submitted_ids.append(rec.task_id)
 
-            task_queue_manager.wait_completion(timeout=15.0)
-            duration_ms = (time.perf_counter_ns() - start_time) / 1_000_000.0
+                task_queue_manager.wait_completion(timeout=15.0)
+                duration_ms = (time.perf_counter_ns() - start_time) / 1_000_000.0
 
             success_count = 0
             recovered_count = 0
@@ -88,23 +90,24 @@ def run_fault_experiment(
             # -------------------------------------------------------------
             # Cenário 2: Falhas Persistentes (Descarte Seguro sem Quebra do Pool)
             # -------------------------------------------------------------
-            start_time = time.perf_counter_ns()
-            submitted_ids = []
+            with sample_experiment("C6_FAULT", trial_id, interval_sec=0.03):
+                start_time = time.perf_counter_ns()
+                submitted_ids = []
 
-            for i in range(faulty_tasks_count):
-                rec = task_queue_manager.submit_task(
-                    task_type="fault_test",
-                    payload={
-                        "should_fail": True,
-                        "fail_attempts": 10,    # Sempre falha além do limite de retentativas
-                        "max_retries": 1,
-                        "error_message": f"Erro fatal controlado #{i+1}"
-                    }
-                )
-                submitted_ids.append(rec.task_id)
+                for i in range(faulty_tasks_count):
+                    rec = task_queue_manager.submit_task(
+                        task_type="fault_test",
+                        payload={
+                            "should_fail": True,
+                            "fail_attempts": 10,    # Sempre falha além do limite de retentativas
+                            "max_retries": 1,
+                            "error_message": f"Erro fatal controlado #{i+1}"
+                        }
+                    )
+                    submitted_ids.append(rec.task_id)
 
-            task_queue_manager.wait_completion(timeout=15.0)
-            duration_ms = (time.perf_counter_ns() - start_time) / 1_000_000.0
+                task_queue_manager.wait_completion(timeout=15.0)
+                duration_ms = (time.perf_counter_ns() - start_time) / 1_000_000.0
 
             failed_count = 0
             for tid in submitted_ids:
@@ -132,38 +135,39 @@ def run_fault_experiment(
             # -------------------------------------------------------------
             # Cenário 3: Saturação de Fila e Continuidade do Serviço
             # -------------------------------------------------------------
-            # Reduz a capacidade temporariamente para induzir sobrecarga imediata
-            task_queue_manager.set_queue_capacity(5)
-            saturations_observed = 0
-            submitted_saturate = []
+            with sample_experiment("C6_FAULT", trial_id, interval_sec=0.03):
+                # Reduz a capacidade temporariamente para induzir sobrecarga imediata
+                task_queue_manager.set_queue_capacity(5)
+                saturations_observed = 0
+                submitted_saturate = []
 
-            start_time = time.perf_counter_ns()
-            for i in range(15):
-                try:
-                    rec = task_queue_manager.submit_task(
-                        task_type="benchmark_task",
-                        payload={"work_ms": 10.0, "index": i},
-                        timeout=0.05  # Timeout curto para simular rejeição rápida em sobrecarga
-                    )
-                    submitted_saturate.append(rec.task_id)
-                except QueueFullError:
-                    saturations_observed += 1
+                start_time = time.perf_counter_ns()
+                for i in range(15):
+                    try:
+                        rec = task_queue_manager.submit_task(
+                            task_type="benchmark_task",
+                            payload={"work_ms": 10.0, "index": i},
+                            timeout=0.05  # Timeout curto para simular rejeição rápida em sobrecarga
+                        )
+                        submitted_saturate.append(rec.task_id)
+                    except QueueFullError:
+                        saturations_observed += 1
 
-            task_queue_manager.wait_completion(timeout=10.0)
+                task_queue_manager.wait_completion(timeout=10.0)
 
-            # Teste de continuidade: submete uma tarefa saudável e verifica execução
-            probe = task_queue_manager.submit_task(
-                task_type="benchmark_task",
-                payload={"work_ms": 5.0, "index": 999},
-                timeout=5.0
-            )
-            task_queue_manager.wait_completion(timeout=5.0)
-            probe_info = task_queue_manager.get_task(probe.task_id)
-            service_continued = probe_info is not None and probe_info["status"] == TaskStatus.COMPLETED.value
-            duration_ms = (time.perf_counter_ns() - start_time) / 1_000_000.0
+                # Teste de continuidade: submete uma tarefa saudável e verifica execução
+                probe = task_queue_manager.submit_task(
+                    task_type="benchmark_task",
+                    payload={"work_ms": 5.0, "index": 999},
+                    timeout=5.0
+                )
+                task_queue_manager.wait_completion(timeout=5.0)
+                probe_info = task_queue_manager.get_task(probe.task_id)
+                service_continued = probe_info is not None and probe_info["status"] == TaskStatus.COMPLETED.value
+                duration_ms = (time.perf_counter_ns() - start_time) / 1_000_000.0
 
-            # Restaura capacidade
-            task_queue_manager.set_queue_capacity(original_capacity)
+                # Restaura capacidade
+                task_queue_manager.set_queue_capacity(original_capacity)
 
             t3 = {
                 "run_id": trial_id,
@@ -201,6 +205,7 @@ def run_fault_experiment(
 
     json_path, csv_path = export_experiment_data("C6_FAULT", {"faulty_count": faulty_tasks_count}, trials, summary)
     plot_path = generate_c6_plot(trials)
+    samples_json, samples_csv = export_experiment_samples("C6_FAULT")
 
     return {
         "experiment_code": "C6_FAULT",
@@ -215,6 +220,8 @@ def run_fault_experiment(
         "artifacts": {
             "json": str(json_path.name),
             "csv": str(csv_path.name),
-            "plot": str(plot_path.name) if plot_path else None
+            "plot": str(plot_path.name) if plot_path else None,
+            "samples_csv": str(samples_csv.name) if samples_csv else None,
+            "samples_json": str(samples_json.name) if samples_json else None
         }
     }

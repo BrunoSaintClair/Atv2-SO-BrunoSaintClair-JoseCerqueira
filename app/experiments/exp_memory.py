@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import psutil
 
 from app.experiments.reporting import export_experiment_data, generate_c5_plot
+from app.services.sampler import export_experiment_samples, sample_experiment
 from app.services.storage import save_experiment_run
 
 # Margem de segurança mínima no sistema (1 GB livre exigido antes de qualquer alocação)
@@ -61,29 +62,30 @@ def run_memory_experiment(
             allocated_buf: Optional[bytearray] = None
             allocated_successfully = False
 
-            try:
-                # 2. Alocação e toque nas páginas (page touching a cada 4 KiB)
-                # O toque induz o kernel a alocar quadros físicos na tabela de páginas (Minor Page Faults)
-                allocated_buf = bytearray(requested_bytes)
-                page_size = 4096
-                for offset in range(0, requested_bytes, page_size):
-                    allocated_buf[offset] = 0xAA
-                allocated_successfully = True
+            with sample_experiment("C5_MEMORY", trial_id, interval_sec=0.1):
+                try:
+                    # 2. Alocação e toque nas páginas (page touching a cada 4 KiB)
+                    # O toque induz o kernel a alocar quadros físicos na tabela de páginas (Minor Page Faults)
+                    allocated_buf = bytearray(requested_bytes)
+                    page_size = 4096
+                    for offset in range(0, requested_bytes, page_size):
+                        allocated_buf[offset] = 0xAA
+                    allocated_successfully = True
 
-                # Medições com a memória ocupada (pico)
-                mem_info_during = process.memory_info()
-                vm_during = psutil.virtual_memory()
-                swap_during = psutil.swap_memory()
-                rusage_during = resource.getrusage(resource.RUSAGE_SELF)
+                    # Medições com a memória ocupada (pico)
+                    mem_info_during = process.memory_info()
+                    vm_during = psutil.virtual_memory()
+                    swap_during = psutil.swap_memory()
+                    rusage_during = resource.getrusage(resource.RUSAGE_SELF)
 
-                # Mantém a alocação pelo tempo especificado
-                time.sleep(hold_duration_sec)
+                    # Mantém a alocação pelo tempo especificado
+                    time.sleep(hold_duration_sec)
 
-            finally:
-                # 3. Liberação determinística e coleta de lixo
-                if allocated_buf is not None:
-                    del allocated_buf
-                gc.collect()
+                finally:
+                    # 3. Liberação determinística e coleta de lixo
+                    if allocated_buf is not None:
+                        del allocated_buf
+                    gc.collect()
 
             duration_ms = (time.perf_counter_ns() - start_time) / 1_000_000.0
 
@@ -145,6 +147,7 @@ def run_memory_experiment(
 
     json_path, csv_path = export_experiment_data("C5_MEMORY", {"allocation_steps_mb": allocation_steps_mb}, trials, summary)
     plot_path = generate_c5_plot(trials)
+    samples_json, samples_csv = export_experiment_samples("C5_MEMORY")
 
     return {
         "experiment_code": "C5_MEMORY",
@@ -158,6 +161,8 @@ def run_memory_experiment(
         "artifacts": {
             "json": str(json_path.name),
             "csv": str(csv_path.name),
-            "plot": str(plot_path.name) if plot_path else None
+            "plot": str(plot_path.name) if plot_path else None,
+            "samples_csv": str(samples_csv.name) if samples_csv else None,
+            "samples_json": str(samples_json.name) if samples_json else None
         }
     }

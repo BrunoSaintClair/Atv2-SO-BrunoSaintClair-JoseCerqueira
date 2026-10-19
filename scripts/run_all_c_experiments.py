@@ -159,21 +159,73 @@ def run_c6(client: httpx.Client):
 
 
 def verify_artifacts(client: httpx.Client):
-    print_header("VERIFICAÇÃO DE DOWNLOAD DE ARTEFATOS (API REST)")
+    print_header("VERIFICAÇÃO DE DOWNLOAD DE ARTEFATOS E AMOSTRAS (API REST)")
     for code in ["c1_c2", "c3", "c4", "c5", "c6"]:
         plot_resp = client.get(f"{BASE_URL}/experiments/{code}/plot")
         csv_resp = client.get(f"{BASE_URL}/experiments/{code}/csv")
-        print(f"  - Experimento [{code.upper()}]: Plot status = {plot_resp.status_code} ({len(plot_resp.content)} bytes) | "
-              f"CSV status = {csv_resp.status_code} ({len(csv_resp.content)} bytes)")
+        samples_resp = client.get(f"{BASE_URL}/experiments/{code}/samples?limit=5")
+        samples_csv_resp = client.get(f"{BASE_URL}/experiments/{code}/samples/csv")
+        print(f"  - Experimento [{code.upper()}]: "
+              f"Plot = {plot_resp.status_code} ({len(plot_resp.content)} B) | "
+              f"CSV = {csv_resp.status_code} ({len(csv_resp.content)} B) | "
+              f"Amostras JSON = {samples_resp.status_code} ({len(samples_resp.json()) if samples_resp.status_code == 200 else 0} itens) | "
+              f"Amostras CSV = {samples_csv_resp.status_code} ({len(samples_csv_resp.content)} B)")
+
+
+def verify_system_telemetry(client: httpx.Client):
+    print_header("VERIFICAÇÃO DA INSTRUMENTAÇÃO NATIVA DO LINUX (/system)")
+    
+    # 1. Informações do Ambiente
+    info_resp = client.get(f"{BASE_URL}/system/info")
+    info_resp.raise_for_status()
+    info = info_resp.json()
+    print("[Ambiente /system/info]:")
+    print(f"  - SO: {info['operating_system'].get('distribution', info['operating_system']['system'])} | Kernel: {info['operating_system']['kernel']} | Arq: {info['operating_system']['architecture']}")
+    print(f"  - CPU: {info['cpu']['model_name']} ({info['cpu']['physical_cores']} núcleos físicos, {info['cpu']['logical_cpus']} CPUs lógicas)")
+    print(f"  - RAM Total: {info['memory_ram']['total_gb']} GB | Livre: {info['memory_ram']['free_gb']} GB | Disponível: {info['memory_ram']['available_gb']} GB")
+    print(f"  - Swap Total: {info['memory_swap']['total_gb']} GB | Usado: {info['memory_swap']['used_gb']} GB")
+    print(f"  - GPU: {info['gpu']['model']} ({info['gpu']['memory_total_mb']} MB VRAM) - Disponível: {info['gpu']['available']}")
+
+    # 2. Detalhes de Memória (/proc/meminfo)
+    mem_resp = client.get(f"{BASE_URL}/system/memory")
+    mem_resp.raise_for_status()
+    mem = mem_resp.json()
+    print("\n[Memória Linux /system/memory]:")
+    s = mem["summary"]
+    print(f"  - MemFree: {s['mem_free_mb']} MB | MemAvailable: {s['mem_available_mb']} MB")
+    print(f"  - Buffers: {s['buffers_mb']} MB | Cached (Page Cache): {s['cached_mb']} MB")
+    print(f"  - SwapCached: {s['swap_cached_mb']} MB | Swap Usado: {s['swap_used_mb']} MB")
+
+    # 3. Processo e I/O (/proc/[pid]/io e getrusage)
+    proc_resp = client.get(f"{BASE_URL}/system/process")
+    proc_resp.raise_for_status()
+    proc = proc_resp.json()
+    print("\n[Processo /system/process]:")
+    print(f"  - PID: {proc['process_identification']['pid']} ({proc['process_identification']['name']}) | Status: {proc['process_identification']['status']}")
+    print(f"  - RSS (Física): {proc['memory']['rss_mb']} MB | VSZ (Virtual): {proc['memory']['vsz_mb']} MB | Threads: {proc['concurrency']['num_threads']}")
+    print(f"  - Minor Page Faults (RAM): {proc['page_faults']['minor_faults']} | Major (Disco): {proc['page_faults']['major_faults']}")
+    print(f"  - I/O User-Space (rchar): {proc['io_counters']['rchar']} B | I/O Físico (read_bytes): {proc['io_counters']['read_bytes']} B")
+
+    # 4. Armazenamento e Partições
+    st_resp = client.get(f"{BASE_URL}/system/storage")
+    st_resp.raise_for_status()
+    st = st_resp.json()
+    print("\n[Armazenamento /system/storage]:")
+    for part in st["partitions"][:2]:
+      print(f"  - Ponto de Montagem '{part['mountpoint']}': {part['total_gb']} GB total, {part['free_gb']} GB livre ({part['fstype']})")
+    print("  - Arquivos da Aplicação:")
+    for f in st["application_data_files"]:
+      print(f"    * {f['name']}: {f['size_mb']} MB (Existe: {f['exists']})")
 
 
 if __name__ == "__main__":
     with httpx.Client(timeout=60.0) as client:
         check_server(client)
+        verify_system_telemetry(client)
         run_c1_c2(client)
         run_c3(client)
         run_c4(client)
         run_c5(client)
         run_c6(client)
         verify_artifacts(client)
-    print_header("TODOS OS EXPERIMENTOS EXECUTADOS E VALIDADOS COM SUCESSO!")
+    print_header("TODOS OS EXPERIMENTOS E INSTRUMENTAÇÃO VALIDADOS COM SUCESSO!")

@@ -98,6 +98,12 @@ Documentação Swagger interativa: [http://localhost:8001/docs](http://localhost
 | `GET` | `/health` | Estado operacional e tempo de atividade da API |
 | `GET` | `/system/info` | Informações observáveis reais do ambiente (Kernel, CPUs, RAM, Swap, GPU, Ollama) |
 | `GET` | `/system/metrics` | Métricas divididas em instantâneas e acumuladas (RSS, VSZ, Page Faults, I/O) |
+| `GET` | `/system/memory` | Detalhamento profundo de `/proc/meminfo` (MemFree, MemAvailable, Buffers, Cached, Anon, File) |
+| `GET` | `/system/process` | Métricas de processo (PID, RSS, VSZ, Page Faults, I/O counters, filhos) |
+| `GET` | `/system/storage` | Sistemas de arquivos, arquivos da aplicação e I/O de disco |
+| `POST` | `/system/sampling/start` | Inicia amostragem manual em background com intervalo configurável |
+| `POST` | `/system/sampling/stop` | Encerra amostragem manual e persiste amostras coletadas no SQLite |
+| `GET` | `/system/sampling/status` | Informa o estado da sessão manual de amostragem |
 | `GET` | `/ai/status` | Verifica a conectividade e disponibilidade dos modelos de IA local |
 | `POST` | `/documents` | Cadastra, fragmenta e ingere um documento gerando embeddings reais |
 | `GET` | `/documents` | Lista documentos cadastrados e quantidade de chunks |
@@ -126,6 +132,9 @@ Documentação Swagger interativa: [http://localhost:8001/docs](http://localhost
 | `GET` | `/experiments/{code}/results` | Consulta o histórico de execuções persistidas no SQLite (ex: EXP_C3_CONCURRENCY) |
 | `GET` | `/experiments/{code}/plot` | Retorna o gráfico PNG gerado pelo experimento |
 | `GET` | `/experiments/{code}/csv` | Baixa o arquivo CSV com dados brutos de cada repetição |
+| `GET` | `/experiments/{code}/samples` | Consulta as amostras de telemetria de SO (before, during, after) |
+| `GET` | `/experiments/{code}/samples/csv` | Baixa o arquivo CSV com séries temporais de métricas de SO |
+| `GET` | `/experiments/{code}/samples/json` | Baixa o arquivo JSON com séries temporais de métricas de SO |
 
 
 ---
@@ -380,28 +389,93 @@ Todos os experimentos foram implementados respeitando a regra de **dados reais g
 
 ---
 
-## 12. Consulta de Histórico e Download de Artefatos Gráficos e Tabulares
+## 12. Consulta de Histórico, Amostras de Telemetria e Download de Artefatos
 
-A API disponibiliza endpoints para recuperar os resultados persistidos no banco de dados SQLite (`genresearch.db`), bem como visualizar os gráficos renderizados pelo Matplotlib e baixar os arquivos brutos CSV:
+A API disponibiliza endpoints para recuperar os resultados brutos e séries temporais de telemetria persistidos no banco de dados SQLite (`genresearch.db`), bem como visualizar os gráficos renderizados pelo Matplotlib e baixar os arquivos CSV/JSON:
 
 | Rota | Tipo | Descrição |
 |---|---|---|
 | `GET /experiments/{code}/results` | JSON | Consulta histórico de execuções persistidas no SQLite (ex: `c1_c2`, `c3`, `c4`, `c5`, `c6`) |
 | `GET /experiments/{code}/plot` | PNG | Baixa ou visualiza na interface o gráfico gerado pelo Matplotlib |
 | `GET /experiments/{code}/csv` | CSV | Baixa a planilha tabular com todas as repetições e métricas do experimento |
+| `GET /experiments/{code}/samples` | JSON | Consulta as amostras de séries temporais de métricas de SO (before, during, after) |
+| `GET /experiments/{code}/samples/csv` | CSV | Baixa o arquivo CSV com séries temporais completas de métricas do SO |
+| `GET /experiments/{code}/samples/json` | JSON | Baixa o arquivo JSON com séries temporais completas de métricas do SO |
 
 ### Exemplos via curl:
 ```bash
 # Baixar o gráfico de escalabilidade C3
 curl -s http://localhost:8001/experiments/c3/plot -o grafico_c3.png
 
-# Baixar os dados brutos de memória C5 em CSV
+# Baixar os dados brutos de repetições C5 em CSV
 curl -s http://localhost:8001/experiments/c5/csv -o dados_c5.csv
+
+# Baixar as amostras temporais de telemetria de SO coletadas durante o experimento C3
+curl -s http://localhost:8001/experiments/c3/samples/csv -o amostras_c3.csv
 ```
 
 ---
 
-## 13. Limitações Conhecidas
+## 13. Instrumentação do Linux e Métricas do Sistema Operacional
 
-1. **GIL (Global Interpreter Lock):** Como o runtime padrão do CPython utiliza GIL, tarefas puramente CPU-bound em threads não utilizam múltiplos núcleos simultaneamente. Contudo, as operações do nosso pipeline são primordialmente **I/O-bound** (chamadas de rede/HTTP locais ao daemon do Ollama e I/O de disco SQLite/NumPy), onde o GIL é prontamente liberado durante as operações de entrada e saída.
-2. **Escala de Workers vs. Capacidade da GPU:** Aumentar indefinidamente o número de workers pode causar contenção de fila no próprio daemon do Ollama, que serializa ou enfileira inferências caso a VRAM da GPU seja saturada.
+A instrumentação do projeto foi desenvolvida para coletar exclusivamente métricas reais expostas pelo kernel Linux (`/proc`, `/sys`, `getrusage`, `psutil` e comandos nativos), sem dados fictícios ou inferências simuladas.
+
+### 13.1. Como Consultar as Informações do Ambiente
+A API disponibiliza quatro rotas modulares de observabilidade:
+1. `GET /system/info`: Retorna distribuição Linux (`/etc/os-release`), versão do Kernel, arquitetura x86-64, modelo da CPU (`/proc/cpuinfo`), memória física, swap, partições montadas e telemetria da GPU dedicada via `nvidia-smi`.
+2. `GET /system/memory`: Detalhamento completo da memória a partir de `/proc/meminfo`.
+3. `GET /system/process`: Métricas específicas do processo da aplicação (PID corrente), threads, faltas de página e processos filhos.
+4. `GET /system/storage`: Detalhamento dos sistemas de arquivos montados, tamanho em disco dos arquivos de banco de dados (`genresearch.db`, `vectors.npy`, `storage_benchmark_sample.bin`) e contadores físicos de I/O de disco.
+
+### 13.2. Conceitos Fundamentais de Memória: MemFree vs MemAvailable e Page Cache
+- **`MemFree`:** Representa a quantidade de memória física (RAM) estritamente vazia/sem uso no instante da leitura. Em sistemas Linux modernos, um valor baixo de `MemFree` **não indica escassez de memória**, pois o kernel mantém a RAM ocupada em tarefas produtivas de cache.
+- **`MemAvailable`:** É a métrica recomendada para avaliar a disponibilidade real de memória. Trata-se de uma estimativa calculada pelo kernel de quanta memória pode ser alocada imediatamente por processos sem acionar *swap*, somando a RAM livre a porções substanciais do Page Cache e slabs recuperáveis (`SReclaimable`).
+- **O Papel do Page Cache:** O kernel Linux aloca memória ociosa para manter cópias em RAM dos blocos de arquivos lidos do armazenamento secundário. Quando os experimentos **C1** e **C2** leem repetidamente o arquivo de benchmark, o acesso é atendido diretamente pelo Page Cache em velocidade de memória RAM (gigabytes por segundo), sem I/O físico de disco. Caso novas aplicações necessitem de RAM física, o kernel descarta instantaneamente páginas de cache limpas (*unmodified*).
+
+### 13.3. Memória do Processo (RSS vs VMS/VSZ) vs Memória do Sistema
+- **`RSS` (*Resident Set Size*):** Quantidade efetiva de memória física (RAM) alocada e mapeada na tabela de páginas (*Page Table*) do processo. É a medida real de impacto na RAM.
+- **`VMS / VSZ` (*Virtual Memory Size*):** Espaço total de endereçamento virtual reservado pelo processo. Inclui código executável, bibliotecas dinâmicas compartilhadas (`libc`), áreas mapeadas via `mmap` e regiões de memória alocadas mas que ainda não sofreram falta de página (*lazy allocation*). Portanto, **VMS é frequentemente ordens de grandeza maior que RSS** e não deve ser interpretado como memória física ocupada.
+- **Diferenciação com a Memória Global:** A memória do sistema reflete o somatório de todos os processos, buffers do kernel e cache de páginas. O processo da aplicação possui seu próprio espaço virtual isolado através da MMU.
+
+### 13.4. Métricas de I/O: Bytes Solicitados (`rchar`) vs Bytes Físicos (`read_bytes`)
+A aplicação coleta métricas de `/proc/[pid]/io` para distinguir o que acontece no espaço de usuário versus o subsistema de armazenamento físico:
+- **`rchar` (Bytes Solicitados):** Contabiliza o número de bytes passados para funções de biblioteca padrão e chamadas de sistema `read()` ou `pread()` no espaço do usuário.
+- **`read_bytes` (Transferência Física):** Contabiliza os bytes que efetivamente exigiram transferência a partir do disco físico (NVMe/SSD).
+- **Evidência Experimental:** Nos testes C1 e C2, `rchar` incrementa milhões de bytes a taxas elevadíssimas, enquanto `read_bytes` permanece zerado ou com valores ínfimos. Isso constitui prova física observável de que a leitura ocorreu a partir do **Page Cache**, sem gerar tráfego físico no barramento NVMe.
+
+### 13.5. Amostragem Temporal Durante os Experimentos
+Para registrar séries temporais de métricas de SO durante as execuções dos experimentos C1–C6:
+- **Fases de Amostragem:** Cada repetição (*trial*) registra automaticamente uma amostra pontual `before` (antes da carga), amostras periódicas `during` em thread background não-bloqueante (com frequência configurável de 0.05s a 0.2s) e uma amostra pontual `after` (após o término da carga).
+- **Campos Estruturados de Cada Amostra:**
+  - `experiment_code` e `run_id` (para correlacionar à bateria de testes)
+  - `phase`: `"before"`, `"during"`, `"after"`
+  - `sample_index` e `timestamp_unix`
+  - `pid` do processo monitorado
+  - `metrics`: RSS, VSZ, CPU %, threads ativas, minor/major page faults, `rchar`, `wchar`, `read_bytes`, `write_bytes`, `mem_free_mb`, `mem_available_mb`, `cached_mb`, `swap_used_mb`
+  - `source`: `/proc/[pid]/io, /proc/meminfo, resource.getrusage, psutil`
+  - `units`: catálogo explícito das unidades de medida (MB, bytes, count, %)
+- **Persistência e Exportação:** As amostras são salvas na tabela `experiment_metric_samples` do SQLite e podem ser exportadas para CSV (`results/csv/{code}_samples.csv`) e JSON (`results/json/{code}_samples.json`).
+
+### 13.6. Sessão Manual de Amostragem sob Demanda
+É possível também iniciar e interromper manualmente uma sessão de amostragem em background via API REST:
+```bash
+# Iniciar amostragem (intervalo de 100ms)
+curl -s -X POST http://localhost:8001/system/sampling/start \
+  -H "Content-Type: application/json" \
+  -d '{"session_label": "SESSAO_TESTE", "interval_sec": 0.1}' | jq .
+
+# Verificar status da amostragem
+curl -s http://localhost:8001/system/sampling/status | jq .
+
+# Encerrar amostragem e persistir dados no SQLite
+curl -s -X POST http://localhost:8001/system/sampling/stop | jq .
+```
+
+---
+
+## 14. Limitações Conhecidas e Permissões do Ambiente Linux
+
+1. **Agregação de Page Faults:** Os contadores de faltas de página retornados por `resource.getrusage(resource.RUSAGE_SELF)` agregam todas as threads do processo. O rastreamento granular de faltas de página por thread individual sem ferramentas avançadas (como `eBPF` com `bcc`/`libbpf` ou `perf_event_open`) exigiria privilégios administrativos (`CAP_SYS_ADMIN` ou `root`).
+2. **Contadores de I/O por Processo (`/proc/[pid]/io`):** A leitura de `/proc/[pid]/io` requer que o kernel Linux tenha sido compilado com `CONFIG_TASK_IO_ACCOUNTING=y` (presente por padrão em distribuições Ubuntu/Debian). Caso executado em contêineres sem permissões adequadas, o campo é sinalizado explicitamente como inacessível.
+3. **Cálculo Instantâneo de CPU %:** Leituras consecutivas de `cpu_percent` em intervalos infinitesimais podem retornar `0.0%` se não houver diferença mensurável de *ticks* no agendador de processos (*CFS - Completely Fair Scheduler*). A amostragem temporal contínua implementada mitiga essa limitação ao registrar múltiplos pontos ao longo do tempo.
+4. **GIL (Global Interpreter Lock):** Tarefas puramente CPU-bound em threads Python não utilizam múltiplos núcleos físicos simultaneamente. Contudo, as operações do pipeline são primordialmente I/O-bound (comunicações HTTP com o Ollama e I/O de disco SQLite/NumPy), liberando o GIL durante esperas bloqueantes do kernel.

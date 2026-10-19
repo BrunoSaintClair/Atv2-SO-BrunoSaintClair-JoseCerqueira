@@ -1,7 +1,7 @@
-run_id,repetition,method,file_size_mb,chunk_size_kb,bytes_read,duration_ms,throughput_mb_s,rss_before_mb,rss_after_mb,minor_page_faults,major_page_faults
-1,1,conventional,9.75,64,10221120,4.76,2047.82,124.34,124.34,0,0
-2,2,conventional,9.75,64,10221120,3.401,2866.25,124.34,124.34,0,0
-3,3,conventional,9.75,64,10221120,3.529,2762.48,124.34,124.34,0,0
-4,1,mmap,9.75,64,10221120,3.305,2949.1,124.34,124.34,156,0
-5,2,mmap,9.75,64,10221120,3.862,2524.07,124.34,124.34,156,0
-6,3,mmap,9.75,64,10221120,3.67,2655.89,124.34,124.34,156,0
+run_id,repetition,method,file_size_mb,chunk_size_kb,bytes_read,duration_ms,throughput_mb_s,rss_before_mb,rss_after_mb,minor_page_faults,major_page_faults,proc_io_rchar_requested,proc_io_read_bytes_physical,served_from_page_cache
+1,1,conventional,9.75,64,10221120,3.068,3177.23,124.82,124.82,0,0,10221278,0,True
+2,2,conventional,9.75,64,10221120,4.693,2076.98,124.82,124.82,0,0,10221278,0,True
+3,3,conventional,9.75,64,10221120,4.968,1961.95,124.82,124.82,0,0,10221278,0,True
+4,1,mmap,9.75,64,10221120,5.455,1786.85,124.82,124.82,156,0,158,0,True
+5,2,mmap,9.75,64,10221120,5.82,1674.78,124.82,124.82,156,0,158,0,True
+6,3,mmap,9.75,64,10221120,3.206,3040.54,124.82,124.82,156,0,158,0,True

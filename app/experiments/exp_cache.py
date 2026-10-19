@@ -6,6 +6,7 @@ import psutil
 
 from app.experiments.reporting import export_experiment_data, generate_c4_plot
 from app.services.cache import SharedLRUCache, generate_cache_key
+from app.services.sampler import export_experiment_samples, sample_experiment
 from app.services.storage import save_experiment_run
 
 
@@ -51,18 +52,19 @@ def run_cache_experiment(
         # -------------------------------------------------------------
         # Cenário 1: Sem Cache
         # -------------------------------------------------------------
-        rss_before = process.memory_info().rss
-        start_time = time.perf_counter_ns()
-        latencies_no_cache = []
+        with sample_experiment("C4_CACHE", trial_id, interval_sec=0.03):
+            rss_before = process.memory_info().rss
+            start_time = time.perf_counter_ns()
+            latencies_no_cache = []
 
-        for q in repeated_queries:
-            q_start = time.perf_counter_ns()
-            _simulate_query_execution(q, delay_ms=work_ms)
-            lat_ms = (time.perf_counter_ns() - q_start) / 1_000_000.0
-            latencies_no_cache.append(lat_ms)
+            for q in repeated_queries:
+                q_start = time.perf_counter_ns()
+                _simulate_query_execution(q, delay_ms=work_ms)
+                lat_ms = (time.perf_counter_ns() - q_start) / 1_000_000.0
+                latencies_no_cache.append(lat_ms)
 
-        dur_no_cache = (time.perf_counter_ns() - start_time) / 1_000_000.0
-        rss_after = process.memory_info().rss
+            dur_no_cache = (time.perf_counter_ns() - start_time) / 1_000_000.0
+            rss_after = process.memory_info().rss
 
         t1 = {
             "run_id": trial_id,
@@ -87,24 +89,25 @@ def run_cache_experiment(
         # -------------------------------------------------------------
         # Cenário 2: Cache Frio (População inicial)
         # -------------------------------------------------------------
-        test_cache = SharedLRUCache(capacity=cache_capacity)
-        start_time = time.perf_counter_ns()
-        latencies_cold = []
+        with sample_experiment("C4_CACHE", trial_id, interval_sec=0.03):
+            test_cache = SharedLRUCache(capacity=cache_capacity)
+            start_time = time.perf_counter_ns()
+            latencies_cold = []
 
-        for q in base_queries:
-            key = generate_cache_key(q, top_k=3, max_context_chars=1000)
-            q_start = time.perf_counter_ns()
-            cached = test_cache.get(key)
-            if cached is None:
-                res = _simulate_query_execution(q, delay_ms=work_ms)
-                lat_ms = (time.perf_counter_ns() - q_start) / 1_000_000.0
-                test_cache.put(key, res, latency_ms=lat_ms)
-            else:
-                lat_ms = (time.perf_counter_ns() - q_start) / 1_000_000.0
-            latencies_cold.append(lat_ms)
+            for q in base_queries:
+                key = generate_cache_key(q, top_k=3, max_context_chars=1000)
+                q_start = time.perf_counter_ns()
+                cached = test_cache.get(key)
+                if cached is None:
+                    res = _simulate_query_execution(q, delay_ms=work_ms)
+                    lat_ms = (time.perf_counter_ns() - q_start) / 1_000_000.0
+                    test_cache.put(key, res, latency_ms=lat_ms)
+                else:
+                    lat_ms = (time.perf_counter_ns() - q_start) / 1_000_000.0
+                latencies_cold.append(lat_ms)
 
-        dur_cold = (time.perf_counter_ns() - start_time) / 1_000_000.0
-        stats_cold = test_cache.get_stats()
+            dur_cold = (time.perf_counter_ns() - start_time) / 1_000_000.0
+            stats_cold = test_cache.get_stats()
 
         t2 = {
             "run_id": trial_id,
@@ -129,29 +132,30 @@ def run_cache_experiment(
         # -------------------------------------------------------------
         # Cenário 3: Cache Aquecido (Consultas Repetidas)
         # -------------------------------------------------------------
-        start_time = time.perf_counter_ns()
-        latencies_warm = []
+        with sample_experiment("C4_CACHE", trial_id, interval_sec=0.03):
+            start_time = time.perf_counter_ns()
+            latencies_warm = []
 
-        for q in repeated_queries:
-            key = generate_cache_key(q, top_k=3, max_context_chars=1000)
-            q_start = time.perf_counter_ns()
-            cached = test_cache.get(key)
-            if cached is None:
-                res = _simulate_query_execution(q, delay_ms=work_ms)
-                lat_ms = (time.perf_counter_ns() - q_start) / 1_000_000.0
-                test_cache.put(key, res, latency_ms=lat_ms)
-            else:
-                lat_ms = (time.perf_counter_ns() - q_start) / 1_000_000.0
-            latencies_warm.append(lat_ms)
+            for q in repeated_queries:
+                key = generate_cache_key(q, top_k=3, max_context_chars=1000)
+                q_start = time.perf_counter_ns()
+                cached = test_cache.get(key)
+                if cached is None:
+                    res = _simulate_query_execution(q, delay_ms=work_ms)
+                    lat_ms = (time.perf_counter_ns() - q_start) / 1_000_000.0
+                    test_cache.put(key, res, latency_ms=lat_ms)
+                else:
+                    lat_ms = (time.perf_counter_ns() - q_start) / 1_000_000.0
+                latencies_warm.append(lat_ms)
 
-        dur_warm = (time.perf_counter_ns() - start_time) / 1_000_000.0
-        # Estatísticas deste bloco
-        warm_hits = sum(1 for l in latencies_warm if l < (work_ms / 2))
-        warm_misses = len(latencies_warm) - warm_hits
-        warm_hit_rate = warm_hits / len(latencies_warm) if latencies_warm else 0.0
-        avg_lat_warm = sum(latencies_warm) / len(latencies_warm) if latencies_warm else 0.0
-        avg_lat_no = t1["average_latency_ms"]
-        time_saved_pct = round(((avg_lat_no - avg_lat_warm) / avg_lat_no) * 100.0, 2) if avg_lat_no > 0 else 0.0
+            dur_warm = (time.perf_counter_ns() - start_time) / 1_000_000.0
+            # Estatísticas deste bloco
+            warm_hits = sum(1 for l in latencies_warm if l < (work_ms / 2))
+            warm_misses = len(latencies_warm) - warm_hits
+            warm_hit_rate = warm_hits / len(latencies_warm) if latencies_warm else 0.0
+            avg_lat_warm = sum(latencies_warm) / len(latencies_warm) if latencies_warm else 0.0
+            avg_lat_no = t1["average_latency_ms"]
+            time_saved_pct = round(((avg_lat_no - avg_lat_warm) / avg_lat_no) * 100.0, 2) if avg_lat_no > 0 else 0.0
 
         t3 = {
             "run_id": trial_id,
@@ -176,13 +180,14 @@ def run_cache_experiment(
         # -------------------------------------------------------------
         # Cenário 4: Evicção LRU (Inserção de mais itens que a capacidade)
         # -------------------------------------------------------------
-        extra_queries = [f"Pergunta extra de transbordo #{i}" for i in range(cache_capacity + 5)]
-        for eq in extra_queries:
-            ekey = generate_cache_key(eq, top_k=3, max_context_chars=1000)
-            eres = _simulate_query_execution(eq, delay_ms=1.0)
-            test_cache.put(ekey, eres, latency_ms=1.0)
+        with sample_experiment("C4_CACHE", trial_id, interval_sec=0.03):
+            extra_queries = [f"Pergunta extra de transbordo #{i}" for i in range(cache_capacity + 5)]
+            for eq in extra_queries:
+                ekey = generate_cache_key(eq, top_k=3, max_context_chars=1000)
+                eres = _simulate_query_execution(eq, delay_ms=1.0)
+                test_cache.put(ekey, eres, latency_ms=1.0)
 
-        stats_evict = test_cache.get_stats()
+            stats_evict = test_cache.get_stats()
         t4 = {
             "run_id": trial_id,
             "repetition": rep + 1,
@@ -221,6 +226,7 @@ def run_cache_experiment(
 
     json_path, csv_path = export_experiment_data("C4_CACHE", {"capacity": cache_capacity}, trials, summary)
     plot_path = generate_c4_plot(trials)
+    samples_json, samples_csv = export_experiment_samples("C4_CACHE")
 
     return {
         "experiment_code": "C4_CACHE",
@@ -236,6 +242,8 @@ def run_cache_experiment(
         "artifacts": {
             "json": str(json_path.name),
             "csv": str(csv_path.name),
-            "plot": str(plot_path.name) if plot_path else None
+            "plot": str(plot_path.name) if plot_path else None,
+            "samples_csv": str(samples_csv.name) if samples_csv else None,
+            "samples_json": str(samples_json.name) if samples_json else None
         }
     }

@@ -54,6 +54,10 @@ def get_system_metrics() -> Dict[str, Any]:
     sys_mem = psutil.virtual_memory()
     sys_swap = psutil.swap_memory()
     
+    # Detalhes de buffers e cache de páginas obtidos via psutil/meminfo
+    buffers_bytes = getattr(sys_mem, "buffers", None)
+    cached_bytes = getattr(sys_mem, "cached", None)
+
     # Tentativa de listar descritores de arquivos abertos pelo processo
     try:
         open_files_count = len(current_process.open_files())
@@ -70,15 +74,29 @@ def get_system_metrics() -> Dict[str, Any]:
             "memory_rss_mb": round(mem_info.rss / (1024 * 1024), 2),
             "memory_vsz_bytes": mem_info.vms,
             "memory_vsz_mb": round(mem_info.vms / (1024 * 1024), 2),
+            "memory_percent": round(current_process.memory_percent(), 2),
+            "status": current_process.status(),
             "open_files_count": open_files_count
         },
         "system_global": {
             "cpu_percent": psutil.cpu_percent(interval=None),
+            "memory_total_bytes": sys_mem.total,
+            "memory_total_mb": round(sys_mem.total / (1024 * 1024), 2),
+            "memory_free_bytes": sys_mem.free,
+            "memory_free_mb": round(sys_mem.free / (1024 * 1024), 2),
             "memory_available_bytes": sys_mem.available,
             "memory_available_mb": round(sys_mem.available / (1024 * 1024), 2),
+            "buffers_bytes": buffers_bytes,
+            "buffers_mb": round(buffers_bytes / (1024 * 1024), 2) if buffers_bytes is not None else None,
+            "cached_bytes": cached_bytes,
+            "cached_mb": round(cached_bytes / (1024 * 1024), 2) if cached_bytes is not None else None,
             "memory_percent_used": sys_mem.percent,
+            "swap_total_bytes": sys_swap.total,
+            "swap_total_mb": round(sys_swap.total / (1024 * 1024), 2),
             "swap_used_bytes": sys_swap.used,
             "swap_used_mb": round(sys_swap.used / (1024 * 1024), 2),
+            "swap_free_bytes": sys_swap.free,
+            "swap_free_mb": round(sys_swap.free / (1024 * 1024), 2),
             "swap_percent_used": sys_swap.percent
         }
     }
@@ -94,10 +112,20 @@ def get_system_metrics() -> Dict[str, Any]:
         io_metrics = {
             "read_count": io_counters.read_count,
             "write_count": io_counters.write_count,
+            "read_chars_bytes": getattr(io_counters, "read_chars", None),
+            "read_chars_mb": round(getattr(io_counters, "read_chars", 0) / (1024 * 1024), 2)
+            if getattr(io_counters, "read_chars", None) is not None else None,
+            "write_chars_bytes": getattr(io_counters, "write_chars", None),
+            "write_chars_mb": round(getattr(io_counters, "write_chars", 0) / (1024 * 1024), 2)
+            if getattr(io_counters, "write_chars", None) is not None else None,
             "read_bytes": io_counters.read_bytes,
             "read_mb": round(io_counters.read_bytes / (1024 * 1024), 2),
             "write_bytes": io_counters.write_bytes,
-            "write_mb": round(io_counters.write_bytes / (1024 * 1024), 2)
+            "write_mb": round(io_counters.write_bytes / (1024 * 1024), 2),
+            "io_interpretation": (
+                "read_chars representa bytes requisitados pelo processo via chamadas read(). "
+                "read_bytes representa bytes que efetivamente exigiram transferência física de disco (faltas no Page Cache)."
+            )
         }
     except Exception:
         io_metrics = {

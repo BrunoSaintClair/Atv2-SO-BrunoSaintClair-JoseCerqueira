@@ -122,6 +122,23 @@ def init_db() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_chunks_doc_id ON chunks (doc_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_exp_code ON experiment_runs (experiment_code);")
 
+        # Tabela para amostragem de métricas de sistema e processo durante experimentos
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS experiment_metric_samples (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                experiment_code TEXT NOT NULL,
+                run_id INTEGER NOT NULL,
+                phase TEXT NOT NULL,
+                sample_index INTEGER NOT NULL,
+                timestamp_unix REAL NOT NULL,
+                pid INTEGER NOT NULL,
+                metrics_json TEXT NOT NULL,
+                source TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_samples_exp ON experiment_metric_samples (experiment_code, run_id);")
+
 
 def save_document(
     doc_id: str,
@@ -405,6 +422,112 @@ def get_experiment_runs(experiment_code: str, limit: int = 50) -> List[Dict[str,
                 "parameters": json.loads(r["parameters_json"]),
                 "metrics": json.loads(r["metrics_json"]),
                 "system_state": json.loads(r["system_state_json"]),
+                "created_at": r["created_at"]
+            })
+        return results
+
+
+def save_metric_sample(
+    experiment_code: str,
+    run_id: int,
+    phase: str,
+    sample_index: int,
+    timestamp_unix: float,
+    pid: int,
+    metrics: Dict[str, Any],
+    source: str = "linux_proc_psutil"
+) -> int:
+    """Persiste uma amostra de telemetria de SO associada a um experimento no SQLite."""
+    metrics_str = json.dumps(metrics)
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO experiment_metric_samples
+            (experiment_code, run_id, phase, sample_index, timestamp_unix, pid, metrics_json, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            """,
+            (experiment_code, run_id, phase, sample_index, timestamp_unix, pid, metrics_str, source)
+        )
+        return cursor.lastrowid
+
+
+def save_metric_samples_batch(samples: List[Dict[str, Any]]) -> int:
+    """Persiste um lote de amostras de telemetria atomicamente no SQLite."""
+    if not samples:
+        return 0
+
+    rows = [
+        (
+            s["experiment_code"],
+            s.get("run_id", 0),
+            s.get("phase", "point_in_time"),
+            s.get("sample_index", idx),
+            s.get("timestamp_unix", 0.0),
+            s.get("pid", 0),
+            json.dumps(s.get("metrics", {})),
+            s.get("source", "linux_proc_psutil")
+        )
+        for idx, s in enumerate(samples)
+    ]
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.executemany(
+            """
+            INSERT INTO experiment_metric_samples
+            (experiment_code, run_id, phase, sample_index, timestamp_unix, pid, metrics_json, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            """,
+            rows
+        )
+        return len(rows)
+
+
+def get_metric_samples(
+    experiment_code: str,
+    run_id: Optional[int] = None,
+    limit: int = 1000
+) -> List[Dict[str, Any]]:
+    """Consulta as amostras de métricas coletadas para um experimento no SQLite."""
+    canonical = experiment_code.upper().replace("-", "_")
+    like_pattern = f"%{canonical}%"
+
+    if run_id is not None:
+        query = """
+            SELECT id, experiment_code, run_id, phase, sample_index, timestamp_unix, pid, metrics_json, source, created_at
+            FROM experiment_metric_samples
+            WHERE (experiment_code = ? OR experiment_code LIKE ?) AND run_id = ?
+            ORDER BY id ASC
+            LIMIT ?;
+        """
+        params = (canonical, like_pattern, run_id, limit)
+    else:
+        query = """
+            SELECT id, experiment_code, run_id, phase, sample_index, timestamp_unix, pid, metrics_json, source, created_at
+            FROM experiment_metric_samples
+            WHERE (experiment_code = ? OR experiment_code LIKE ?)
+            ORDER BY id ASC
+            LIMIT ?;
+        """
+        params = (canonical, like_pattern, limit)
+
+    with get_db_connection(read_only=True) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        results = []
+        for r in rows:
+            results.append({
+                "id": r["id"],
+                "experiment_code": r["experiment_code"],
+                "run_id": r["run_id"],
+                "phase": r["phase"],
+                "sample_index": r["sample_index"],
+                "timestamp_unix": r["timestamp_unix"],
+                "pid": r["pid"],
+                "metrics": json.loads(r["metrics_json"]),
+                "source": r["source"],
                 "created_at": r["created_at"]
             })
         return results

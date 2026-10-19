@@ -9,6 +9,7 @@ import psutil
 from app.config import DEFAULT_WORKERS_COUNT
 from app.experiments.reporting import export_experiment_data, generate_c3_plot
 from app.services.request_queue import task_queue_manager
+from app.services.sampler import export_experiment_samples, sample_experiment
 from app.services.storage import save_experiment_run
 
 
@@ -42,35 +43,36 @@ def run_concurrency_experiment(
                 task_queue_manager.scale_workers(w_count)
                 time.sleep(0.1)  # Estabilização das threads
 
-                cpu_before = psutil.cpu_percent(interval=None)
-                rss_before = process.memory_info().rss
-                start_time = time.perf_counter_ns()
+                with sample_experiment("C3_CONCURRENCY", trial_id, interval_sec=0.03):
+                    cpu_before = psutil.cpu_percent(interval=None)
+                    rss_before = process.memory_info().rss
+                    start_time = time.perf_counter_ns()
 
-                submitted_ids: List[str] = []
-                queue_full_blocks = 0
+                    submitted_ids: List[str] = []
+                    queue_full_blocks = 0
 
-                # Submete as tarefas
-                for i in range(tasks_per_trial):
-                    try:
-                        record = task_queue_manager.submit_task(
-                            task_type="benchmark_task",
-                            payload={
-                                "work_ms": work_ms,
-                                "iterations": 3000,
-                                "index": i
-                            },
-                            timeout=5.0
-                        )
-                        submitted_ids.append(record.task_id)
-                    except Exception:
-                        queue_full_blocks += 1
+                    # Submete as tarefas
+                    for i in range(tasks_per_trial):
+                        try:
+                            record = task_queue_manager.submit_task(
+                                task_type="benchmark_task",
+                                payload={
+                                    "work_ms": work_ms,
+                                    "iterations": 3000,
+                                    "index": i
+                                },
+                                timeout=5.0
+                            )
+                            submitted_ids.append(record.task_id)
+                        except Exception:
+                            queue_full_blocks += 1
 
-                # Aguarda todas as tarefas completarem
-                completed_cleanly = task_queue_manager.wait_completion(timeout=30.0)
-                duration_ms = (time.perf_counter_ns() - start_time) / 1_000_000.0
+                    # Aguarda todas as tarefas completarem
+                    completed_cleanly = task_queue_manager.wait_completion(timeout=30.0)
+                    duration_ms = (time.perf_counter_ns() - start_time) / 1_000_000.0
 
-                rss_after = process.memory_info().rss
-                cpu_after = psutil.cpu_percent(interval=None)
+                    rss_after = process.memory_info().rss
+                    cpu_after = psutil.cpu_percent(interval=None)
 
                 # Coleta tempos de cada tarefa
                 wait_times: List[float] = []
@@ -148,6 +150,7 @@ def run_concurrency_experiment(
 
     json_path, csv_path = export_experiment_data("C3_CONCURRENCY", {"workers": workers_list, "tasks": tasks_per_trial}, trials, summary)
     plot_path = generate_c3_plot(trials)
+    samples_json, samples_csv = export_experiment_samples("C3_CONCURRENCY")
 
     return {
         "experiment_code": "C3_CONCURRENCY",
@@ -163,6 +166,8 @@ def run_concurrency_experiment(
         "artifacts": {
             "json": str(json_path.name),
             "csv": str(csv_path.name),
-            "plot": str(plot_path.name) if plot_path else None
+            "plot": str(plot_path.name) if plot_path else None,
+            "samples_csv": str(samples_csv.name) if samples_csv else None,
+            "samples_json": str(samples_json.name) if samples_json else None
         }
     }
