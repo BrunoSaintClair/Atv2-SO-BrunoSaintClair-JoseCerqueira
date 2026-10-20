@@ -395,7 +395,7 @@ A API disponibiliza endpoints para recuperar os resultados brutos e séries temp
 
 | Rota | Tipo | Descrição |
 |---|---|---|
-| `GET /experiments/{code}/results` | JSON | Consulta histórico de execuções persistidas no SQLite (ex: `c1_c2`, `c3`, `c4`, `c5`, `c6`) |
+| `GET /experiments/{code}/results` | JSON | Consulta histórico de execuções persistidas no SQLite (ex: `c1_c2`, `c3`, `c4`, `c5`, `c6`, `d_race_condition`) |
 | `GET /experiments/{code}/plot` | PNG | Baixa ou visualiza na interface o gráfico gerado pelo Matplotlib |
 | `GET /experiments/{code}/csv` | CSV | Baixa a planilha tabular com todas as repetições e métricas do experimento |
 | `GET /experiments/{code}/samples` | JSON | Consulta as amostras de séries temporais de métricas de SO (before, during, after) |
@@ -404,6 +404,9 @@ A API disponibiliza endpoints para recuperar os resultados brutos e séries temp
 
 ### Exemplos via curl:
 ```bash
+# Baixar o gráfico de condição de corrida vs lock do Experimento D
+curl -s http://localhost:8001/experiments/d_race_condition/plot -o grafico_corrida_d.png
+
 # Baixar o gráfico de escalabilidade C3
 curl -s http://localhost:8001/experiments/c3/plot -o grafico_c3.png
 

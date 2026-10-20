@@ -1,0 +1,115 @@
+{
+  "experiment_code": "d_race_condition",
+  "parameters": {
+    "num_threads": 4,
+    "increments_per_thread": 2000,
+    "mode": "both",
+    "repeat": 3
+  },
+  "summary": {
+    "unsynchronized": {
+      "repetitions": 3,
+      "all_correct": false,
+      "average_lost_updates": 5999.67,
+      "average_lost_ratio_percent": 75.0,
+      "average_duration_ms": 125.57
+    },
+    "synchronized": {
+      "repetitions": 3,
+      "all_correct": true,
+      "average_lost_updates": 0.0,
+      "average_lost_ratio_percent": 0.0,
+      "average_duration_ms": 509.11
+    },
+    "trade_off": {
+      "lock_overhead_percent": 305.44,
+      "consistency_guarantee": "Exclusão mútua impediu 100% das perdas de atualização registradas no modo desprotegido."
+    }
+  },
+  "trials": [
+    {
+      "use_lock": false,
+      "num_threads": 4,
+      "increments_per_thread": 2000,
+      "expected_value": 8000,
+      "observed_value": 2001,
+      "lost_updates": 5999,
+      "lost_ratio_percent": 74.99,
+      "is_correct": false,
+      "duration_ms": 129.78,
+      "operations_per_second": 15418.46,
+      "run_id": 1,
+      "repetition": 1
+    },
+    {
+      "use_lock": false,
+      "num_threads": 4,
+      "increments_per_thread": 2000,
+      "expected_value": 8000,
+      "observed_value": 2000,
+      "lost_updates": 6000,
+      "lost_ratio_percent": 75.0,
+      "is_correct": false,
+      "duration_ms": 125.06,
+      "operations_per_second": 15992.74,
+      "run_id": 2,
+      "repetition": 2
+    },
+    {
+      "use_lock": false,
+      "num_threads": 4,
+      "increments_per_thread": 2000,
+      "expected_value": 8000,
+      "observed_value": 2000,
+      "lost_updates": 6000,
+      "lost_ratio_percent": 75.0,
+      "is_correct": false,
+      "duration_ms": 121.86,
+      "operations_per_second": 16412.82,
+      "run_id": 3,
+      "repetition": 3
+    },
+    {
+      "use_lock": true,
+      "num_threads": 4,
+      "increments_per_thread": 2000,
+      "expected_value": 8000,
+      "observed_value": 8000,
+      "lost_updates": 0,
+      "lost_ratio_percent": 0.0,
+      "is_correct": true,
+      "duration_ms": 507.59,
+      "operations_per_second": 15760.69,
+      "run_id": 4,
+      "repetition": 1
+    },
+    {
+      "use_lock": true,
+      "num_threads": 4,
+      "increments_per_thread": 2000,
+      "expected_value": 8000,
+      "observed_value": 8000,
+      "lost_updates": 0,
+      "lost_ratio_percent": 0.0,
+      "is_correct": true,
+      "duration_ms": 515.92,
+      "operations_per_second": 15506.36,
+      "run_id": 5,
+      "repetition": 2
+    },
+    {
+      "use_lock": true,
+      "num_threads": 4,
+      "increments_per_thread": 2000,
+      "expected_value": 8000,
+      "observed_value": 8000,
+      "lost_updates": 0,
+      "lost_ratio_percent": 0.0,
+      "is_correct": true,
+      "duration_ms": 503.83,
+      "operations_per_second": 15878.46,
+      "run_id": 6,
+      "repetition": 3
+    }
+  ]
+}

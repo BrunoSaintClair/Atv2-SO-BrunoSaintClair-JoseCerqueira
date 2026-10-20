@@ -236,3 +236,68 @@ def generate_c6_plot(trials: List[Dict[str, Any]]) -> Optional[Path]:
     plt.savefig(plot_path, dpi=150)
     plt.close()
     return plot_path
+
+
+def generate_race_condition_plot(trials: List[Dict[str, Any]]) -> Optional[Path]:
+    """Gera gráfico comparativo de perdas de atualização e exclusão mútua (Experimento D)."""
+    if not trials:
+        return None
+
+    plot_path = PLOTS_RESULTS_DIR / "d_race_condition.png"
+
+    # Agrupa por modo (sem lock vs com lock)
+    unsync_trials = [t for t in trials if not t.get("use_lock")]
+    sync_trials = [t for t in trials if t.get("use_lock")]
+
+    labels = []
+    expected_vals = []
+    observed_vals = []
+    lost_vals = []
+
+    if unsync_trials:
+        labels.append("Sem Sincronização\n(Race Condition)")
+        expected_vals.append(sum(t["expected_value"] for t in unsync_trials) / len(unsync_trials))
+        observed_vals.append(sum(t["observed_value"] for t in unsync_trials) / len(unsync_trials))
+        lost_vals.append(sum(t["lost_updates"] for t in unsync_trials) / len(unsync_trials))
+
+    if sync_trials:
+        labels.append("Com Sincronização\n(threading.Lock)")
+        expected_vals.append(sum(t["expected_value"] for t in sync_trials) / len(sync_trials))
+        observed_vals.append(sum(t["observed_value"] for t in sync_trials) / len(sync_trials))
+        lost_vals.append(sum(t["lost_updates"] for t in sync_trials) / len(sync_trials))
+
+    x = range(len(labels))
+    width = 0.25
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    b1 = ax.bar([i - width for i in x], expected_vals, width=width, label="Valor Esperado", color="#1f77b4")
+    b2 = ax.bar(x, observed_vals, width=width, label="Valor Observado", color="#2ca02c")
+    b3 = ax.bar([i + width for i in x], lost_vals, width=width, label="Incrementos Perdidos", color="#d62728")
+
+    ax.set_ylabel("Valor do Contador Compartilhado")
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_title("Experimento D: Condição de Corrida (Lost Updates) vs Exclusão Mútua (Lock)")
+    ax.grid(axis="y", linestyle="--", alpha=0.6)
+    ax.legend()
+
+    for bar_group in [b1, b2, b3]:
+        for bar in bar_group:
+            h = bar.get_height()
+            if h > 0:
+                ax.annotate(
+                    f"{int(h)}",
+                    xy=(bar.get_x() + bar.get_width() / 2, h),
+                    xytext=(0, 3),
+                    textcoords="offset points",
+                    ha="center",
+                    va="bottom",
+                    fontsize=9,
+                    fontweight="bold"
+                )
+
+    plt.tight_layout()
+    plt.savefig(plot_path, dpi=150)
+    plt.close()
+    return plot_path
+

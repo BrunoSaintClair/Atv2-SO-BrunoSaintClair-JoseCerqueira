@@ -160,7 +160,7 @@ def run_c6(client: httpx.Client):
 
 def verify_artifacts(client: httpx.Client):
     print_header("VERIFICAÇÃO DE DOWNLOAD DE ARTEFATOS E AMOSTRAS (API REST)")
-    for code in ["c1_c2", "c3", "c4", "c5", "c6"]:
+    for code in ["c1_c2", "c3", "c4", "c5", "c6", "d_race_condition"]:
         plot_resp = client.get(f"{BASE_URL}/experiments/{code}/plot")
         csv_resp = client.get(f"{BASE_URL}/experiments/{code}/csv")
         samples_resp = client.get(f"{BASE_URL}/experiments/{code}/samples?limit=5")

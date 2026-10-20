@@ -11,6 +11,7 @@ import time
 from typing import Any, Dict, List, Optional
 import psutil
 
+from app.experiments.reporting import export_experiment_data, generate_race_condition_plot
 from app.services.storage import save_experiment_run
 
 
@@ -209,6 +210,19 @@ def run_race_condition_experiment(
             "consistency_guarantee": "Exclusão mútua impediu 100% das perdas de atualização registradas no modo desprotegido."
         }
 
+    json_path, csv_path = export_experiment_data(
+        "d_race_condition",
+        {
+            "num_threads": num_threads,
+            "increments_per_thread": increments_per_thread,
+            "mode": mode,
+            "repeat": repeat
+        },
+        trials_results,
+        comparison
+    )
+    plot_path = generate_race_condition_plot(trials_results)
+
     return {
         "experiment_code": "EXP_D_RACE_CONDITION",
         "parameters": {
@@ -220,5 +234,10 @@ def run_race_condition_experiment(
             "inject_interleaving": inject_interleaving
         },
         "trials": trials_results,
-        "comparison_summary": comparison
+        "comparison_summary": comparison,
+        "artifacts": {
+            "json": str(json_path.name),
+            "csv": str(csv_path.name),
+            "plot": str(plot_path.name) if plot_path else None
+        }
     }

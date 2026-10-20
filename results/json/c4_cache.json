@@ -6,24 +6,24 @@
   "summary": {
     "sem_cache": {
       "scenario": "Sem Cache",
-      "average_latency_ms": 15.16,
+      "average_latency_ms": 15.15,
       "average_hit_rate": 0.0,
       "average_evictions": 0.0,
       "average_saved_percent": 0.0
     },
     "cache_frio": {
       "scenario": "Cache Frio",
-      "average_latency_ms": 15.17,
+      "average_latency_ms": 15.15,
       "average_hit_rate": 0.0,
       "average_evictions": 0.0,
       "average_saved_percent": 0.0
     },
     "cache_aquecido": {
       "scenario": "Cache Aquecido",
-      "average_latency_ms": 0.0,
+      "average_latency_ms": 0.01,
       "average_hit_rate": 1.0,
       "average_evictions": 0.0,
-      "average_saved_percent": 99.98
+      "average_saved_percent": 99.94
     },
     "evicção_lru": {
       "scenario": "Evicção LRU",
@@ -44,11 +44,11 @@
       "misses": 10,
       "evictions": 0,
       "hit_rate": 0.0,
-      "average_latency_ms": 15.19,
-      "total_duration_ms": 151.97,
+      "average_latency_ms": 15.16,
+      "total_duration_ms": 151.62,
       "time_saved_ms": 0.0,
       "time_saved_percent": 0.0,
-      "rss_mb": 133.21
+      "rss_mb": 144.39
     },
     {
       "run_id": 2,
@@ -60,11 +60,11 @@
       "misses": 10,
       "evictions": 0,
       "hit_rate": 0.0,
-      "average_latency_ms": 15.17,
-      "total_duration_ms": 152.55,
+      "average_latency_ms": 15.16,
+      "total_duration_ms": 152.39,
       "time_saved_ms": 0.0,
       "time_saved_percent": 0.0,
-      "rss_mb": 133.21
+      "rss_mb": 144.39
     },
     {
       "run_id": 3,
@@ -77,10 +77,10 @@
       "evictions": 0,
       "hit_rate": 1.0,
       "average_latency_ms": 0.0,
-      "total_duration_ms": 0.11,
-      "time_saved_ms": 151.87,
+      "total_duration_ms": 0.14,
+      "time_saved_ms": 151.56,
       "time_saved_percent": 99.98,
-      "rss_mb": 133.21
+      "rss_mb": 144.39
     },
     {
       "run_id": 4,
@@ -96,7 +96,7 @@
       "total_duration_ms": 10.0,
       "time_saved_ms": 0.0,
       "time_saved_percent": 0.0,
-      "rss_mb": 133.21
+      "rss_mb": 144.39
     },
     {
       "run_id": 5,
@@ -109,10 +109,10 @@
       "evictions": 0,
       "hit_rate": 0.0,
       "average_latency_ms": 15.14,
-      "total_duration_ms": 151.45,
+      "total_duration_ms": 151.47,
       "time_saved_ms": 0.0,
       "time_saved_percent": 0.0,
-      "rss_mb": 133.21
+      "rss_mb": 144.39
     },
     {
       "run_id": 6,
@@ -124,11 +124,11 @@
       "misses": 10,
       "evictions": 0,
       "hit_rate": 0.0,
-      "average_latency_ms": 15.17,
-      "total_duration_ms": 152.37,
+      "average_latency_ms": 15.15,
+      "total_duration_ms": 152.28,
       "time_saved_ms": 0.0,
       "time_saved_percent": 0.0,
-      "rss_mb": 133.21
+      "rss_mb": 144.39
     },
     {
       "run_id": 7,
@@ -140,11 +140,11 @@
       "misses": 0,
       "evictions": 0,
       "hit_rate": 1.0,
-      "average_latency_ms": 0.0,
-      "total_duration_ms": 0.1,
-      "time_saved_ms": 151.37,
-      "time_saved_percent": 99.98,
-      "rss_mb": 133.21
+      "average_latency_ms": 0.02,
+      "total_duration_ms": 0.39,
+      "time_saved_ms": 151.21,
+      "time_saved_percent": 99.87,
+      "rss_mb": 144.39
     },
     {
       "run_id": 8,
@@ -160,7 +160,7 @@
       "total_duration_ms": 10.0,
       "time_saved_ms": 0.0,
       "time_saved_percent": 0.0,
-      "rss_mb": 133.21
+      "rss_mb": 144.39
     },
     {
       "run_id": 9,
@@ -172,11 +172,11 @@
       "misses": 10,
       "evictions": 0,
       "hit_rate": 0.0,
-      "average_latency_ms": 15.14,
-      "total_duration_ms": 151.44,
+      "average_latency_ms": 15.15,
+      "total_duration_ms": 151.56,
       "time_saved_ms": 0.0,
       "time_saved_percent": 0.0,
-      "rss_mb": 133.21
+      "rss_mb": 144.39
     },
     {
       "run_id": 10,
@@ -188,11 +188,11 @@
       "misses": 10,
       "evictions": 0,
       "hit_rate": 0.0,
-      "average_latency_ms": 15.18,
-      "total_duration_ms": 152.47,
+      "average_latency_ms": 15.14,
+      "total_duration_ms": 152.13,
       "time_saved_ms": 0.0,
       "time_saved_percent": 0.0,
-      "rss_mb": 133.21
+      "rss_mb": 144.39
     },
     {
       "run_id": 11,
@@ -205,10 +205,10 @@
       "evictions": 0,
       "hit_rate": 1.0,
       "average_latency_ms": 0.0,
-      "total_duration_ms": 0.16,
-      "time_saved_ms": 151.36,
+      "total_duration_ms": 0.14,
+      "time_saved_ms": 151.46,
       "time_saved_percent": 99.97,
-      "rss_mb": 133.21
+      "rss_mb": 144.39
     },
     {
       "run_id": 12,
@@ -224,7 +224,7 @@
       "total_duration_ms": 10.0,
       "time_saved_ms": 0.0,
       "time_saved_percent": 0.0,
-      "rss_mb": 133.21
+      "rss_mb": 144.39
     }
   ]
 }

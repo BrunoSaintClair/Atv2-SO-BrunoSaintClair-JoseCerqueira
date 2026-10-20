@@ -1,0 +1,7 @@
+use_lock,num_threads,increments_per_thread,expected_value,observed_value,lost_updates,lost_ratio_percent,is_correct,duration_ms,operations_per_second,run_id,repetition
+False,4,2000,8000,2001,5999,74.99,False,129.78,15418.46,1,1
+False,4,2000,8000,2000,6000,75.0,False,125.06,15992.74,2,2
+False,4,2000,8000,2000,6000,75.0,False,121.86,16412.82,3,3
+True,4,2000,8000,8000,0,0.0,True,507.59,15760.69,4,1
+True,4,2000,8000,8000,0,0.0,True,515.92,15506.36,5,2
+True,4,2000,8000,8000,0,0.0,True,503.83,15878.46,6,3
